@@ -3,179 +3,132 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Arctic Compass LinkAuth OAuth 授权">
   <title>授权 - Arctic Compass LinkAuth</title>
   <link rel="stylesheet" href="css/style.css">
-  <script src="js/i18n.js"></script>
-  <script src="js/theme.js"></script>
-  <script src="js/icons.js"></script>
   <script src="js/sm3.js"></script>
-  <script src="js/config.js"></script>
-  <script src="js/api.js"></script>
+  <script src="js/linkauth-core.js"></script>
 </head>
 <body>
-  <div class="authorize-page">
-    <div class="header-controls" style="position:fixed;top:16px;right:16px;z-index:1000;" data-header-controls></div>
-    <div class="authorize-card">
-      <div class="app-icon" id="appIcon">&#x1F4F1;</div>
-      <h2 class="app-name" id="appName">正在请求授权</h2>
-      <p class="auth-info" id="authInfo">
-        <span id="userLinkId">-</span> 将授权以下权限给此应用
-      </p>
+  <div class="auth-page">
+    <div class="auth-container">
+      <h1>应用授权</h1>
+      <p class="subtitle" id="appName">正在请求授权...</p>
 
-      <div class="permissions">
-        <ul id="permissionsList">
-          <li>查看你的用户标识（link_id）</li>
-          <li>验证你的身份信息</li>
-        </ul>
+      <div id="loadingPanel">
+        <p style="text-align:center;color:var(--text-secondary);">加载中...</p>
       </div>
 
-      <div class="btn-group" style="justify-content:center;">
-        <button class="btn btn-primary" id="authorizeBtn">授权</button>
-        <button class="btn btn-ghost" id="rejectBtn">拒绝</button>
+      <div id="authPanel" class="hidden">
+        <div style="background:var(--bg-tertiary);padding:16px;border-radius:var(--border-radius);margin-bottom:16px;">
+          <p style="margin:0 0 8px 0;"><strong id="appNameDisplay"></strong> 请求以下权限：</p>
+          <ul style="margin:0;padding-left:20px;color:var(--text-secondary);">
+            <li>获取你的基本信息（账号ID、用户名）</li>
+            <li>使用你的身份进行认证</li>
+          </ul>
+        </div>
+
+        <p style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:16px;">
+          登录账号：<strong id="loginAccount"></strong>
+        </p>
+
+        <div class="form-group hidden" id="errorContainer">
+          <div class="form-error" id="errorMessage"></div>
+        </div>
+
+        <div style="display:flex;gap:12px;">
+          <button id="denyBtn" class="btn btn-outline" style="flex:1;">拒绝</button>
+          <button id="approveBtn" class="btn btn-primary" style="flex:1;">授权</button>
+        </div>
       </div>
 
-      <p class="text-muted mt-md" style="font-size:0.8rem;">
-        授权后你将跳转回应用
-      </p>
+      <div id="resultPanel" class="hidden" style="text-align:center;padding:20px;">
+        <div id="resultIcon" style="font-size:3rem;margin-bottom:12px;"></div>
+        <p id="resultMessage" style="font-size:1.1rem;"></p>
+      </div>
     </div>
   </div>
 
   <script>
     (function () {
       'use strict';
+      var C = window.LinkAuthCore;
 
-      // Parse URL parameters
-      var params = new URLSearchParams(window.location.search);
-      var clientId = params.get('client_id');
-      var redirectUri = params.get('redirect_uri');
-      var state = params.get('state');
-      var responseType = params.get('response_type') || 'code';
-      var scope = params.get('scope') || '';
+      function qp() {
+        var p = {};
+        (window.location.search.substring(1) || '').split('&').forEach(function (pair) {
+          var parts = pair.split('=');
+          if (parts.length === 2) p[decodeURIComponent(parts[0])] = decodeURIComponent(parts[1]);
+        });
+        return p;
+      }
+      var params = qp();
 
-      // Check if user is logged in
-      var linkId = sessionStorage.getItem('link_id');
-      var authToken = sessionStorage.getItem('auth_token');
+      var clientId = params.client_id;
+      var redirectUri = params.redirect_uri;
+      var state = params.state || '';
+      var linkId = params.link_id;
 
-      if (!linkId || !authToken) {
-        // Not logged in - save redirect and go to login
-        sessionStorage.setItem('oauth_redirect', window.location.href);
-        window.location.href = 'login.html';
+      var loadingPanel = document.getElementById('loadingPanel');
+      var authPanel = document.getElementById('authPanel');
+      var resultPanel = document.getElementById('resultPanel');
+      var errorContainer = document.getElementById('errorContainer');
+      var errorMessage = document.getElementById('errorMessage');
+
+      // 验证参数
+      if (!clientId || !redirectUri || !linkId) {
+        loadingPanel.innerHTML = '<div class="form-error">参数不完整：缺少 client_id、redirect_uri 或 link_id</div>';
         return;
       }
 
-      // Display user info
-      document.getElementById('userLinkId').textContent = linkId;
-
-      // Parse scope for permissions display
-      if (scope) {
-        var scopeList = scope.split(/\s+/).filter(Boolean);
-        var permissionsList = document.getElementById('permissionsList');
-        permissionsList.innerHTML = '';
-
-        var scopeDescriptions = {
-          'openid': '查看你的身份标识（link_id）',
-          'profile': '查看你的用户信息',
-          'email': '查看你的邮箱地址',
-          'phone': '查看你的手机号'
-        };
-
-        if (scopeList.length > 0) {
-          scopeList.forEach(function (s) {
-            var li = document.createElement('li');
-            li.textContent = scopeDescriptions[s] || '访问: ' + s;
-            permissionsList.appendChild(li);
-          });
-        } else {
-          var li = document.createElement('li');
-          li.textContent = '查看你的用户标识（link_id）';
-          permissionsList.appendChild(li);
-        }
+      var app = C.getAppInfo(clientId);
+      if (!app) {
+        loadingPanel.innerHTML = '<div class="form-error">应用不存在或已下架（client_id: ' + clientId.replace(/</g,'&lt;') + '）</div>';
+        return;
       }
 
-      // ---- Authorize ----
-      document.getElementById('authorizeBtn').addEventListener('click', async function () {
-        this.disabled = true;
-        this.textContent = '授权中...';
-
-        try {
-          var result = await window.LinkAuthAPI.authorize({
-            link_id: linkId,
-            client_id: clientId,
-            redirect_uri: redirectUri,
-            state: state,
-            action: 'approve'
-          });
-
-          // Redirect to callback URL
-          if (result.redirect_url) {
-            window.location.href = result.redirect_url;
-          } else if (redirectUri) {
-            // Build callback URL manually
-            var callbackUrl = redirectUri;
-            var separator = callbackUrl.indexOf('?') >= 0 ? '&' : '?';
-            callbackUrl += separator + 'code=' + encodeURIComponent(result.code || '');
-            if (state) {
-              callbackUrl += '&state=' + encodeURIComponent(state);
-            }
-            window.location.href = callbackUrl;
-          } else {
-            showToast('授权成功，但未指定回调地址', 'success');
-          }
-
-        } catch (err) {
-          showToast(err.message || '授权失败', 'error');
-          this.disabled = false;
-          this.textContent = '授权';
-        }
-      });
-
-      // ---- Reject ----
-      document.getElementById('rejectBtn').addEventListener('click', function () {
-        if (redirectUri) {
-          var callbackUrl = redirectUri;
-          var separator = callbackUrl.indexOf('?') >= 0 ? '&' : '?';
-          callbackUrl += separator + 'error=access_denied';
-          if (state) {
-            callbackUrl += '&state=' + encodeURIComponent(state);
-          }
-          window.location.href = callbackUrl;
-        } else {
-          showToast('已拒绝授权', 'info');
-        }
-      });
-
-      // ---- Toast Helper ----
-      function showToast(message, type) {
-        type = type || 'info';
-        var container = document.querySelector('.toast-container');
-        if (!container) {
-          container = document.createElement('div');
-          container.className = 'toast-container';
-          document.body.appendChild(container);
-        }
-
-        var toast = document.createElement('div');
-        toast.className = 'toast ' + type;
-
-        var icons = { success: '\u2713', error: '\u2717', warning: '\u26A0', info: '\u2139' };
-        toast.innerHTML =
-          '<span class="toast-icon">' + (icons[type] || '') + '</span>' +
-          '<span class="toast-message"></span>' +
-          '<button class="toast-close">&times;</button>';
-        toast.querySelector('.toast-message').textContent = message;
-
-        toast.querySelector('.toast-close').addEventListener('click', function () {
-          toast.remove();
-        });
-
-        container.appendChild(toast);
-
-        setTimeout(function () {
-          if (toast.parentNode) toast.remove();
-        }, 5000);
+      // 验证 redirect_uri 是否在白名单中
+      var uriOk = app.redirect_uris.some(function (u) { return redirectUri.indexOf(u) === 0 || redirectUri === u; });
+      if (!uriOk) {
+        loadingPanel.innerHTML = '<div class="form-error">回调地址不在应用白名单中</div>';
+        return;
       }
 
+      // 显示授权面板
+      loadingPanel.classList.add('hidden');
+      authPanel.classList.remove('hidden');
+      document.getElementById('appName').textContent = app.app_name + ' 请求访问你的账号';
+      document.getElementById('appNameDisplay').textContent = app.app_name;
+      document.getElementById('loginAccount').textContent = linkId;
+
+      // 批准
+      document.getElementById('approveBtn').addEventListener('click', function () {
+        C.approveApp(linkId, clientId);
+        var code = C.createAuthCode(clientId, linkId);
+        var sep = redirectUri.indexOf('?') > -1 ? '&' : '?';
+        var url = redirectUri + sep + 'code=' + encodeURIComponent(code) + '&state=' + encodeURIComponent(state);
+
+        authPanel.classList.add('hidden');
+        resultPanel.classList.remove('hidden');
+        document.getElementById('resultIcon').textContent = '&#10003;';
+        document.getElementById('resultIcon').style.color = 'var(--accent-success)';
+        document.getElementById('resultMessage').textContent = '授权成功，正在跳转...';
+
+        setTimeout(function () { window.location.href = url; }, 800);
+      });
+
+      // 拒绝
+      document.getElementById('denyBtn').addEventListener('click', function () {
+        var sep = redirectUri.indexOf('?') > -1 ? '&' : '?';
+        var url = redirectUri + sep + 'error=access_denied&state=' + encodeURIComponent(state);
+
+        authPanel.classList.add('hidden');
+        resultPanel.classList.remove('hidden');
+        document.getElementById('resultIcon').textContent = '&#10007;';
+        document.getElementById('resultIcon').style.color = 'var(--accent-danger)';
+        document.getElementById('resultMessage').textContent = '已拒绝授权';
+
+        setTimeout(function () { window.location.href = url; }, 1000);
+      });
     })();
   </script>
 </body>

@@ -3,1023 +3,234 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Arctic Compass LinkAuth 用户中心">
   <title>用户中心 - Arctic Compass LinkAuth</title>
   <link rel="stylesheet" href="css/style.css">
-  <script src="js/i18n.js"></script>
-  <script src="js/theme.js"></script>
-  <script src="js/icons.js"></script>
   <script src="js/sm3.js"></script>
-  <script src="js/config.js"></script>
-  <script src="js/api.js"></script>
-  <style>
-    /* Toggle Switch */
-    .toggle-switch {
-      position: relative;
-      display: inline-block;
-      width: 48px;
-      height: 26px;
-      flex-shrink: 0;
-    }
-    .toggle-switch input {
-      opacity: 0;
-      width: 0;
-      height: 0;
-    }
-    .toggle-slider {
-      position: absolute;
-      cursor: pointer;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background-color: var(--border-color);
-      transition: var(--transition-fast);
-      border-radius: 26px;
-    }
-    .toggle-slider:before {
-      position: absolute;
-      content: "";
-      height: 20px;
-      width: 20px;
-      left: 3px;
-      bottom: 3px;
-      background-color: white;
-      transition: var(--transition-fast);
-      border-radius: 50%;
-    }
-    .toggle-switch input:checked + .toggle-slider {
-      background-color: var(--accent-primary);
-    }
-    .toggle-switch input:checked + .toggle-slider:before {
-      transform: translateX(22px);
-    }
-    /* Notification item */
-    .notif-item {
-      padding: var(--spacing-md);
-      border-bottom: 1px solid var(--border-color);
-      transition: background-color var(--transition-fast);
-      cursor: pointer;
-    }
-    .notif-item:last-child {
-      border-bottom: none;
-    }
-    .notif-item.unread {
-      background-color: var(--accent-primary-light);
-    }
-    .notif-item:hover {
-      background-color: var(--bg-tertiary);
-    }
-    .notif-item .notif-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: var(--spacing-sm);
-      margin-bottom: var(--spacing-xs);
-    }
-    .notif-item .notif-title {
-      font-weight: 600;
-      font-size: 0.9rem;
-      flex: 1;
-    }
-    .notif-item .notif-time {
-      font-size: 0.75rem;
-      color: var(--text-tertiary);
-      white-space: nowrap;
-    }
-    .notif-item .notif-content {
-      font-size: 0.85rem;
-      color: var(--text-secondary);
-      line-height: 1.5;
-    }
-    .notif-item .notif-footer {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-top: var(--spacing-sm);
-    }
-    .notif-item .notif-type-badge {
-      font-size: 0.7rem;
-      padding: 2px 8px;
-      border-radius: 999px;
-      background: var(--bg-tertiary);
-      color: var(--text-secondary);
-    }
-    .notif-item .notif-type-badge.info { background: var(--accent-primary-light); color: var(--accent-primary); }
-    .notif-item .notif-type-badge.success { background: var(--accent-success-light); color: var(--accent-success); }
-    .notif-item .notif-type-badge.warning { background: var(--accent-warning-light); color: var(--accent-warning); }
-    .notif-item .notif-type-badge.danger { background: var(--accent-danger-light); color: var(--accent-danger); }
-    .notif-mark-read {
-      font-size: 0.78rem;
-      color: var(--accent-primary);
-      background: none;
-      border: none;
-      cursor: pointer;
-      padding: 2px 6px;
-    }
-    .notif-mark-read:hover {
-      text-decoration: underline;
-    }
-  </style>
+  <script src="js/linkauth-core.js"></script>
 </head>
 <body>
-  <div class="page-wrapper">
-    <header class="site-header">
-      <div class="container">
-        <div class="header-left">
-          <a href="/" class="logo">
-            <span class="logo-icon">LA</span>
-            Arctic Compass LinkAuth
-          </a>
-        </div>
-        <button class="menu-toggle" id="menuToggle" aria-label="切换菜单">&#9776;</button>
-        <div class="header-controls" data-header-controls></div>
-        <nav>
-          <ul class="nav-links" id="navLinks">
-            <li><a href="/">首页</a></li>
-            <li><a href="login.html">登录</a></li>
-            <li><a href="user-center.html" class="active">用户中心<span class="badge badge-danger hidden" id="notifNavBadge" style="margin-left:6px;font-size:0.7rem;padding:1px 6px;min-width:18px;text-align:center;">0</span></a></li>
-          </ul>
-        </nav>
+  <div class="auth-page">
+    <div class="auth-container" style="max-width:700px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <h1 style="margin:0;">用户中心</h1>
+        <button id="logoutBtn" class="btn btn-outline" style="font-size:0.85rem;">退出登录</button>
       </div>
-    </header>
 
-    <main class="main-content">
-      <div class="user-center-page">
+      <div id="loadingPanel"><p style="text-align:center;color:var(--text-secondary);">加载中...</p></div>
 
-        <!-- Key Verification Screen -->
-        <div class="verify-screen" id="verifyScreen">
-          <div class="verify-card">
-            <div class="lock-icon">&#x1F512;</div>
-            <h2>验证管理器密钥</h2>
-            <p class="text-muted mb-lg">请输入你的 manager_key 以访问用户中心</p>
-
-            <form id="verifyForm" novalidate>
-              <div class="form-group">
-                <label class="form-label" for="verifyLinkId">link_id</label>
-                <input type="text" id="verifyLinkId" class="form-input" placeholder="输入 link_id" required>
-              </div>
-              <div class="form-group">
-                <label class="form-label" for="verifyManagerKey">manager_key</label>
-                <input type="password" id="verifyManagerKey" class="form-input" placeholder="输入管理器密钥" required>
-              </div>
-              <div class="form-group hidden" id="verifyError">
-                <div class="form-error" id="verifyErrorMessage"></div>
-              </div>
-              <button type="submit" class="btn btn-primary btn-block" id="verifyBtn">
-                <span class="spinner spinner-sm hidden" id="verifySpinner"></span>
-                <span id="verifyText">验证</span>
-              </button>
-            </form>
-          </div>
+      <div id="mainPanel" class="hidden">
+        <!-- 用户信息卡片 -->
+        <div style="background:var(--bg-tertiary);padding:16px;border-radius:var(--border-radius);margin-bottom:20px;">
+          <p style="margin:0 0 4px 0;"><strong id="profileLinkId"></strong></p>
+          <p style="margin:0;font-size:0.85rem;color:var(--text-secondary);">
+            角色：<span id="profileRole"></span> &middot; 状态：<span id="profileStatus"></span>
+          </p>
+          <p style="margin:4px 0 0 0;font-size:0.8rem;color:var(--text-tertiary);">
+            管理密钥：<code id="profileKey" style="font-size:0.75rem;"></code>
+          </p>
+          <p id="tempInfo" style="margin:4px 0 0 0;font-size:0.8rem;color:var(--accent-warning);" class="hidden"></p>
         </div>
 
-        <!-- Dashboard (hidden until verified) -->
-        <div id="dashboard" class="hidden">
-          <h2>用户中心</h2>
+        <!-- 标签导航 -->
+        <div style="display:flex;gap:0;border-bottom:2px solid var(--border-color);margin-bottom:20px;">
+          <button class="tab-btn active" data-tab="security" style="flex:1;padding:10px;border:none;background:none;cursor:pointer;font-size:0.9rem;border-bottom:2px solid transparent;margin-bottom:-2px;">安全设置</button>
+          <button class="tab-btn" data-tab="apps" style="flex:1;padding:10px;border:none;background:none;cursor:pointer;font-size:0.9rem;border-bottom:2px solid transparent;margin-bottom:-2px;">已授权应用</button>
+          <button class="tab-btn" data-tab="notifications" style="flex:1;padding:10px;border:none;background:none;cursor:pointer;font-size:0.9rem;border-bottom:2px solid transparent;margin-bottom:-2px;">通知</button>
+        </div>
 
-          <!-- Profile Section -->
-          <div class="card" id="profileSection">
-            <div class="card-header">
-              <h3>个人信息</h3>
-              <button class="btn btn-ghost btn-sm" id="editProfileBtn">编辑</button>
+        <div id="securityTab" class="tab-content">
+          <h3>修改密码</h3>
+          <form id="changePwdForm" novalidate>
+            <div class="form-group">
+              <label class="form-label" for="oldPassword">原密码</label>
+              <input type="password" id="oldPassword" class="form-input" placeholder="输入原密码" required>
             </div>
-            <div class="card-body">
-              <div class="form-group">
-                <label class="form-label">link_id</label>
-                <div class="form-input" style="background:var(--bg-tertiary);" id="profileLinkId" readonly></div>
+            <div class="form-group">
+              <label class="form-label" for="newPassword">新密码</label>
+              <input type="password" id="newPassword" class="form-input" placeholder="至少6位" required minlength="6">
+            </div>
+            <button type="submit" class="btn btn-primary">修改密码</button>
+            <span id="pwdMsg" style="margin-left:12px;font-size:0.85rem;"></span>
+          </form>
+
+          <h3 style="margin-top:24px;">更新安全问题</h3>
+          <form id="updateSqForm" novalidate>
+            <div id="sqContainer">
+              <div class="sq-row" style="display:flex;gap:8px;margin-bottom:8px;">
+                <select class="form-input sq-question" style="flex:1;">
+                  <option value="">选择问题...</option>
+                  <option value="你的出生城市是？">你的出生城市是？</option>
+                  <option value="你的小学名称是？">你的小学名称是？</option>
+                  <option value="你最喜欢的电影是？">你最喜欢的电影是？</option>
+                  <option value="你的宠物名字是？">你的宠物名字是？</option>
+                  <option value="你的母亲姓氏是？">你的母亲姓氏是？</option>
+                </select>
+                <input type="text" class="form-input sq-answer" placeholder="答案" style="flex:1;">
               </div>
-              <div class="form-group">
-                <label class="form-label">用户名</label>
-                <div class="form-input" id="profileUsername" readonly></div>
-              </div>
-              <div class="form-group">
-                <label class="form-label">登录账号</label>
-                <div class="form-input" id="profileLoginAccount" readonly></div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Change Password -->
-          <div class="card hidden" id="changePasswordCard">
-            <div class="card-header">
-              <h3>修改密码</h3>
-              <button class="btn btn-ghost btn-sm" id="cancelChangePassword">取消</button>
-            </div>
-            <div class="card-body">
-              <form id="changePasswordForm" novalidate>
-                <div class="form-group">
-                  <label class="form-label" for="oldPassword">当前密码</label>
-                  <input type="password" id="oldPassword" class="form-input" required>
-                </div>
-                <div class="form-group">
-                  <label class="form-label" for="newPassword">新密码</label>
-                  <input type="password" id="newPassword" class="form-input" required minlength="8">
-                  <div class="password-strength">
-                    <div class="bar"><div class="bar-fill" id="newStrengthBar"></div></div>
-                    <span class="label" id="newStrengthLabel">至少8位</span>
-                  </div>
-                </div>
-                <div class="form-group">
-                  <label class="form-label" for="confirmNewPassword">确认新密码</label>
-                  <input type="password" id="confirmNewPassword" class="form-input" required>
-                </div>
-                <button type="submit" class="btn btn-primary" id="changePwdBtn">修改密码</button>
-              </form>
-            </div>
-          </div>
-
-          <!-- Security Questions Management -->
-          <div class="card" id="securitySection">
-            <div class="card-header">
-              <h3>安全问题管理</h3>
-              <button class="btn btn-ghost btn-sm" id="editSecurityBtn">修改</button>
-            </div>
-            <div class="card-body" id="securityQuestionsDisplay">
-              <p class="text-muted">加载中...</p>
-            </div>
-            <div class="card-body hidden" id="securityQuestionsEdit">
-              <div id="editQuestionsContainer"></div>
-              <button type="button" class="btn btn-ghost btn-sm" id="addEditQuestionBtn">+ 添加问题</button>
-              <button class="btn btn-primary btn-sm mt-md" id="saveSecurityBtn">保存修改</button>
-            </div>
-          </div>
-
-          <!-- Authorized Apps -->
-          <div class="card" id="appsSection">
-            <div class="card-header">
-              <h3>已授权应用</h3>
-            </div>
-            <div class="card-body">
-              <div id="appsList">
-                <p class="text-muted">加载中...</p>
+              <div class="sq-row" style="display:flex;gap:8px;margin-bottom:8px;">
+                <select class="form-input sq-question" style="flex:1;">
+                  <option value="">选择问题...</option>
+                  <option value="你的出生城市是？">你的出生城市是？</option>
+                  <option value="你的小学名称是？">你的小学名称是？</option>
+                  <option value="你最喜欢的电影是？">你最喜欢的电影是？</option>
+                  <option value="你的宠物名字是？">你的宠物名字是？</option>
+                  <option value="你的母亲姓氏是？">你的母亲姓氏是？</option>
+                </select>
+                <input type="text" class="form-input sq-answer" placeholder="答案" style="flex:1;">
               </div>
             </div>
-          </div>
+            <button type="submit" class="btn btn-primary">更新安全问题</button>
+            <span id="sqMsg" style="margin-left:12px;font-size:0.85rem;"></span>
+          </form>
+        </div>
 
-          <!-- Devices -->
-          <div class="card" id="devicesSection">
-            <div class="card-header">
-              <h3>已登录设备</h3>
-            </div>
-            <div class="card-body">
-              <div id="devicesList">
-                <p class="text-muted">加载中...</p>
-              </div>
-            </div>
-          </div>
+        <div id="appsTab" class="tab-content hidden">
+          <h3>已授权应用</h3>
+          <div id="appsList"><p style="color:var(--text-secondary);">暂无已授权应用</p></div>
+        </div>
 
-          <!-- Notifications -->
-          <div class="card" id="notifSection">
-            <div class="card-header">
-              <h3>消息通知</h3>
-              <span class="badge badge-danger hidden" id="notifUnreadBadge">0 条未读</span>
-            </div>
-            <div class="card-body">
-              <!-- Push Toggle -->
-              <div class="form-group" style="display:flex;align-items:center;justify-content:space-between;padding:var(--spacing-md);background:var(--bg-tertiary);border-radius:var(--border-radius);margin-bottom:var(--spacing-md);">
-                <div>
-                  <span style="font-weight:600;">推送通知</span>
-                  <p class="text-muted" style="font-size:0.8rem;margin-top:4px;">开启后将接收来自 LinkAuth 的系统通知</p>
-                </div>
-                <label class="toggle-switch">
-                  <input type="checkbox" id="pushToggle">
-                  <span class="toggle-slider"></span>
-                </label>
-              </div>
-
-              <!-- Notification List -->
-              <div id="notifList">
-                <p class="text-muted" id="notifLoading">加载中...</p>
-              </div>
-
-              <!-- Pagination -->
-              <div class="flex-between mt-md hidden" id="notifPagination">
-                <button class="btn btn-ghost btn-sm" id="notifPrevBtn" disabled>上一页</button>
-                <span class="text-muted" id="notifPageInfo" style="font-size:0.8rem;">第 1 页</span>
-                <button class="btn btn-ghost btn-sm" id="notifNextBtn" disabled>下一页</button>
-              </div>
-            </div>
-          </div>
-
-          <!-- Account Disable -->
-          <div class="card" id="disableSection">
-            <div class="card-header">
-              <h3>危险区域</h3>
-            </div>
-            <div class="card-body">
-              <p class="text-muted mb-md">禁用账号后将无法登录和使用所有授权服务。此操作不可撤销。</p>
-              <button class="btn btn-danger" id="disableAccountBtn">禁用账号</button>
-            </div>
-          </div>
+        <div id="notificationsTab" class="tab-content hidden">
+          <h3>通知列表</h3>
+          <div id="notificationsList"><p style="color:var(--text-secondary);">暂无通知</p></div>
         </div>
       </div>
-    </main>
 
-    <footer class="site-footer">
-      <div class="container">
-        <p>&copy; 2026 linkauth. 基于 MIT 协议开源发布。</p>
+      <div id="loginPrompt" class="hidden" style="text-align:center;padding:40px;">
+        <p style="color:var(--text-secondary);">请先登录</p>
+        <a href="login.html" class="btn btn-primary">前往登录</a>
       </div>
-    </footer>
+    </div>
   </div>
 
   <script>
     (function () {
       'use strict';
+      var C = window.LinkAuthCore;
+      var session = C.getSession();
+      if (!session) {
+        document.getElementById('loadingPanel').classList.add('hidden');
+        document.getElementById('loginPrompt').classList.remove('hidden');
+        return;
+      }
 
-      var linkId = '';
-      var managerKey = '';
+      var profile = C.getUserProfile(session.link_id);
+      if (!profile) {
+        C.clearSession();
+        document.getElementById('loadingPanel').classList.add('hidden');
+        document.getElementById('loginPrompt').classList.remove('hidden');
+        return;
+      }
 
-      // ---- Elements ----
-      var verifyScreen = document.getElementById('verifyScreen');
-      var dashboard = document.getElementById('dashboard');
-      var verifyForm = document.getElementById('verifyForm');
-      var verifyLinkIdInput = document.getElementById('verifyLinkId');
-      var verifyManagerKeyInput = document.getElementById('verifyManagerKey');
-      var verifyBtn = document.getElementById('verifyBtn');
-      var verifySpinner = document.getElementById('verifySpinner');
-      var verifyText = document.getElementById('verifyText');
-      var verifyError = document.getElementById('verifyError');
-      var verifyErrorMessage = document.getElementById('verifyErrorMessage');
+      document.getElementById('loadingPanel').classList.add('hidden');
+      document.getElementById('mainPanel').classList.remove('hidden');
 
-      // ---- Step 1: Verify Manager Key ----
-      verifyForm.addEventListener('submit', async function (e) {
+      // 填充用户信息
+      document.getElementById('profileLinkId').textContent = profile.link_id;
+      document.getElementById('profileRole').textContent = profile.role === 'admin' ? '管理员' : (profile.role === 'temp' ? '临时用户' : '普通用户');
+      document.getElementById('profileStatus').textContent = profile.status === 'active' ? '正常' : '已封禁';
+      document.getElementById('profileKey').textContent = profile.manager_key || '无（临时账号）';
+
+      if (profile.is_temp) {
+        var ti = document.getElementById('tempInfo');
+        ti.classList.remove('hidden');
+        var exp = new Date(profile.temp_expires * 1000).toLocaleString();
+        ti.textContent = '临时账号，过期时间：' + exp + ' | 已延期 ' + profile.temp_extend_count + '/3 次';
+        if (profile.temp_extend_count < 3) {
+          ti.innerHTML += ' <button id="extendBtn" class="btn btn-outline" style="font-size:0.75rem;padding:2px 8px;">延期</button>';
+        }
+      }
+
+      // 标签切换
+      document.querySelectorAll('.tab-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          document.querySelectorAll('.tab-btn').forEach(function (b) { b.classList.remove('active'); b.style.color = ''; b.style.borderBottomColor = 'transparent'; });
+          btn.classList.add('active');
+          btn.style.color = 'var(--accent-primary)';
+          btn.style.borderBottomColor = 'var(--accent-primary)';
+          document.querySelectorAll('.tab-content').forEach(function (t) { t.classList.add('hidden'); });
+          document.getElementById(btn.dataset.tab + 'Tab').classList.remove('hidden');
+        });
+      });
+      // 初始激活样式
+      var activeTab = document.querySelector('.tab-btn.active');
+      if (activeTab) { activeTab.style.color = 'var(--accent-primary)'; activeTab.style.borderBottomColor = 'var(--accent-primary)'; }
+
+      // 修改密码
+      document.getElementById('changePwdForm').addEventListener('submit', function (e) {
         e.preventDefault();
-
-        var lid = verifyLinkIdInput.value.trim();
-        var mk = verifyManagerKeyInput.value.trim();
-
-        if (!lid || !mk) {
-          showError('请填写 link_id 和 manager_key');
-          return;
-        }
-
-        verifyError.classList.add('hidden');
-        verifyBtn.disabled = true;
-        verifySpinner.classList.remove('hidden');
-        verifyText.textContent = '验证中...';
-
-        try {
-          var result = await window.LinkAuthAPI.verifyManagerKey({
-            link_id: lid,
-            manager_key: mk
-          });
-
-          if (result.verified) {
-            linkId = lid;
-            managerKey = mk;
-            sessionStorage.setItem('uc_link_id', lid);
-            verifyScreen.classList.add('hidden');
-            dashboard.classList.remove('hidden');
-            loadDashboard();
-          } else {
-            showError('验证失败：' + (result.error || 'manager_key 不正确'));
-          }
-
-        } catch (err) {
-          showError(err.message || '验证失败');
-        } finally {
-          verifyBtn.disabled = false;
-          verifySpinner.classList.add('hidden');
-          verifyText.textContent = '验证';
-        }
+        var r = C.changePassword(session.link_id, document.getElementById('oldPassword').value, document.getElementById('newPassword').value);
+        var msg = document.getElementById('pwdMsg');
+        msg.textContent = r.message || r.error;
+        msg.style.color = r.ok ? 'var(--accent-success)' : 'var(--accent-danger)';
+        if (r.ok) { document.getElementById('oldPassword').value = ''; document.getElementById('newPassword').value = ''; }
       });
 
-      function showError(msg) {
-        verifyErrorMessage.textContent = msg;
-        verifyError.classList.remove('hidden');
-      }
-
-      // ---- Step 2: Load Dashboard ----
-      async function loadDashboard() {
-        loadProfile();
-        loadSecurityQuestions();
-        loadAuthorizedApps();
-        loadDevices();
-        loadPushConfig();
-        loadNotifications();
-      }
-
-      // ---- Profile ----
-      async function loadProfile() {
-        try {
-          var result = await window.LinkAuthAPI.getUserProfile(linkId, managerKey);
-          document.getElementById('profileLinkId').textContent = result.link_id || linkId;
-          document.getElementById('profileUsername').textContent = result.username || '-';
-          document.getElementById('profileLoginAccount').textContent = result.login_account || '（未设置）';
-        } catch (err) {
-          showToast('加载个人信息失败: ' + err.message, 'error');
-        }
-      }
-
-      // ---- Change Password ----
-      document.getElementById('editProfileBtn').addEventListener('click', function () {
-        var card = document.getElementById('changePasswordCard');
-        card.classList.toggle('hidden');
-      });
-
-      document.getElementById('cancelChangePassword').addEventListener('click', function () {
-        document.getElementById('changePasswordCard').classList.add('hidden');
-      });
-
-      document.getElementById('newPassword').addEventListener('input', function () {
-        var pwd = this.value;
-        var bar = document.getElementById('newStrengthBar');
-        var label = document.getElementById('newStrengthLabel');
-
-        if (!pwd || pwd.length < 8) {
-          bar.className = 'bar-fill';
-          label.textContent = '至少8位';
-          return;
-        }
-
-        var score = 0;
-        if (pwd.length >= 12) score += 1;
-        if (pwd.length >= 16) score += 1;
-        if (/[a-z]/.test(pwd) && /[A-Z]/.test(pwd)) score += 1;
-        if (/\d/.test(pwd)) score += 1;
-        if (/[^a-zA-Z0-9]/.test(pwd)) score += 1;
-
-        if (score < 2) { bar.className = 'bar-fill weak'; label.textContent = '弱'; }
-        else if (score < 4) { bar.className = 'bar-fill medium'; label.textContent = '中'; }
-        else { bar.className = 'bar-fill strong'; label.textContent = '强'; }
-      });
-
-      document.getElementById('changePasswordForm').addEventListener('submit', async function (e) {
+      // 更新安全问题
+      document.getElementById('updateSqForm').addEventListener('submit', function (e) {
         e.preventDefault();
-
-        var oldPwd = document.getElementById('oldPassword').value;
-        var newPwd = document.getElementById('newPassword').value;
-        var confirmPwd = document.getElementById('confirmNewPassword').value;
-
-        if (newPwd !== confirmPwd) {
-          showToast('两次输入的新密码不一致', 'error');
-          return;
-        }
-        if (newPwd.length < 8) {
-          showToast('新密码长度至少8位', 'error');
-          return;
-        }
-
-        try {
-          await window.LinkAuthAPI.changePassword({
-            link_id: linkId,
-            manager_key: managerKey,
-            old_password_hash: window.SM3.hash(oldPwd),
-            new_password_hash: window.SM3.hash(newPwd)
-          });
-          showToast('密码修改成功', 'success');
-          document.getElementById('changePasswordCard').classList.add('hidden');
-          document.getElementById('changePasswordForm').reset();
-        } catch (err) {
-          showToast(err.message || '修改密码失败', 'error');
-        }
-      });
-
-      // ---- Security Questions ----
-      var editMode = false;
-
-      async function loadSecurityQuestions() {
-        try {
-          var result = await window.LinkAuthAPI.getUserProfile(linkId, managerKey);
-          var display = document.getElementById('securityQuestionsDisplay');
-          var questions = result.security_questions || [];
-
-          if (questions.length === 0) {
-            display.textContent = '';
-            var emptyP = document.createElement('p');
-            emptyP.className = 'text-muted';
-            emptyP.textContent = '未设置安全问题';
-            display.appendChild(emptyP);
-          } else {
-            display.textContent = '';
-            var ul = document.createElement('ul');
-            ul.style.cssText = 'list-style:none;padding:0;';
-            questions.forEach(function (q, i) {
-              var li = document.createElement('li');
-              li.style.cssText = 'padding:8px 0;border-bottom:1px solid var(--border-color);';
-              var strong = document.createElement('strong');
-              strong.textContent = '问题 ' + (i + 1) + ':';
-              li.appendChild(strong);
-              li.appendChild(document.createTextNode(' ' + q.question));
-              ul.appendChild(li);
-            });
-            display.appendChild(ul);
-          }
-        } catch (err) {
-          showToast('加载安全问题失败', 'error');
-        }
-      }
-
-      document.getElementById('editSecurityBtn').addEventListener('click', function () {
-        if (editMode) return;
-        editMode = true;
-        document.getElementById('securityQuestionsDisplay').classList.add('hidden');
-        var editContainer = document.getElementById('securityQuestionsEdit');
-        editContainer.classList.remove('hidden');
-
-        var container = document.getElementById('editQuestionsContainer');
-        container.innerHTML = '';
-
-        // Add 3 question fields by default
-        for (var i = 0; i < 3; i++) {
-          addEditQuestionField(container, i + 1);
-        }
-      });
-
-      function addEditQuestionField(container, index) {
-        var div = document.createElement('div');
-        div.className = 'security-question-group';
-        div.innerHTML =
-          '<div class="form-group">' +
-            '<label class="form-label">问题 ' + index + '</label>' +
-            '<input type="text" class="form-input edit-question" placeholder="输入安全问题" maxlength="200">' +
-          '</div>' +
-          '<div class="form-group">' +
-            '<label class="form-label">答案 ' + index + '</label>' +
-            '<input type="text" class="form-input edit-answer" placeholder="输入答案" maxlength="128">' +
-          '</div>';
-        container.appendChild(div);
-      }
-
-      document.getElementById('addEditQuestionBtn').addEventListener('click', function () {
-        var container = document.getElementById('editQuestionsContainer');
-        var count = container.children.length;
-        if (count >= 5) {
-          showToast('最多5组安全问题', 'warning');
-          return;
-        }
-        addEditQuestionField(container, count + 1);
-      });
-
-      document.getElementById('saveSecurityBtn').addEventListener('click', async function () {
-        var container = document.getElementById('editQuestionsContainer');
-        var fields = container.querySelectorAll('.security-question-group');
-        var questions = [];
-
-        fields.forEach(function (group) {
-          var q = group.querySelector('.edit-question').value.trim();
-          var a = group.querySelector('.edit-answer').value.trim();
-          if (q && a) {
-            questions.push({
-              question: q,
-              answer_hash: window.SM3.hash(a)
-            });
-          }
+        var qs = [];
+        document.querySelectorAll('#sqContainer .sq-row').forEach(function (row) {
+          var q = row.querySelector('.sq-question').value;
+          var a = row.querySelector('.sq-answer').value.trim();
+          if (q && a) qs.push({ question: q, answer: a });
         });
-
-        if (questions.length === 0) {
-          showToast('请至少填写一组完整的安全问题', 'error');
+        if (qs.length < 2) {
+          document.getElementById('sqMsg').textContent = '请至少设置2个安全问题';
+          document.getElementById('sqMsg').style.color = 'var(--accent-danger)';
           return;
         }
+        var r = C.updateSecurityQuestions(session.link_id, qs);
+        var msg = document.getElementById('sqMsg');
+        msg.textContent = r.message || r.error;
+        msg.style.color = r.ok ? 'var(--accent-success)' : 'var(--accent-danger)';
+      });
 
-        try {
-          await window.LinkAuthAPI.updateSecurityQuestions({
-            link_id: linkId,
-            manager_key: managerKey,
-            questions: questions
-          });
-          showToast('安全问题更新成功', 'success');
-          editMode = false;
-          document.getElementById('securityQuestionsEdit').classList.add('hidden');
-          document.getElementById('securityQuestionsDisplay').classList.remove('hidden');
-          loadSecurityQuestions();
-        } catch (err) {
-          showToast(err.message || '更新失败', 'error');
+      // 已授权应用
+      var apps = C.getAuthorizedApps(session.link_id);
+      var appsList = document.getElementById('appsList');
+      if (apps.length > 0) {
+        appsList.innerHTML = apps.map(function (a) {
+          return '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px;border:1px solid var(--border-color);border-radius:var(--border-radius);margin-bottom:8px;">' +
+            '<span>' + a.app_name + ' <small style="color:var(--text-tertiary);">(' + a.client_id + ')</small></span>' +
+            '<button class="btn btn-outline revoke-btn" data-client="' + a.client_id + '" style="font-size:0.8rem;color:var(--accent-danger);">撤销</button></div>';
+        }).join('');
+      }
+
+      // 通知
+      var notifs = C.getNotifications(session.link_id);
+      var notifsList = document.getElementById('notificationsList');
+      if (notifs.length > 0) {
+        notifsList.innerHTML = notifs.map(function (n) {
+          return '<div style="padding:10px;border:1px solid var(--border-color);border-radius:var(--border-radius);margin-bottom:8px;' + (n.read ? 'opacity:0.6;' : '') + '">' +
+            '<strong>' + n.title + '</strong> <small style="color:var(--text-tertiary);">' + new Date(n.created_at * 1000).toLocaleString() + '</small>' +
+            '<p style="margin:4px 0 0 0;font-size:0.85rem;">' + n.body + '</p></div>';
+        }).join('');
+      }
+
+      // 撤销授权
+      document.addEventListener('click', function (e) {
+        if (e.target.classList.contains('revoke-btn')) {
+          C.revokeApp(session.link_id, e.target.dataset.client);
+          e.target.closest('div').remove();
+          if (appsList.children.length === 0) appsList.innerHTML = '<p style="color:var(--text-secondary);">暂无已授权应用</p>';
         }
       });
 
-      // ---- Authorized Apps ----
-      async function loadAuthorizedApps() {
-        try {
-          var result = await window.LinkAuthAPI.getAuthorizedApps(linkId, managerKey);
-          var apps = result.apps || [];
-          var container = document.getElementById('appsList');
-
-          container.textContent = '';
-
-          if (apps.length === 0) {
-            var emptyP = document.createElement('p');
-            emptyP.className = 'text-muted';
-            emptyP.textContent = '暂无已授权应用';
-            container.appendChild(emptyP);
-            return;
-          }
-
-          var wrapper = document.createElement('div');
-          wrapper.className = 'table-wrapper';
-          var table = document.createElement('table');
-
-          var thead = document.createElement('thead');
-          thead.innerHTML = '<tr><th>应用名称</th><th>授权时间</th><th>操作</th></tr>';
-          table.appendChild(thead);
-
-          var tbody = document.createElement('tbody');
-          apps.forEach(function (app) {
-            var tr = document.createElement('tr');
-
-            var tdName = document.createElement('td');
-            tdName.textContent = app.app_name || app.client_id || '未知应用';
-            tr.appendChild(tdName);
-
-            var tdTime = document.createElement('td');
-            tdTime.textContent = app.authorized_at || '-';
-            tr.appendChild(tdTime);
-
-            var tdAction = document.createElement('td');
-            var btn = document.createElement('button');
-            btn.className = 'btn btn-danger btn-sm revoke-app-btn';
-            btn.setAttribute('data-app-id', app.app_id || app.client_id);
-            btn.textContent = '撤销';
-            tdAction.appendChild(btn);
-            tr.appendChild(tdAction);
-
-            tbody.appendChild(tr);
-          });
-          table.appendChild(tbody);
-          wrapper.appendChild(table);
-          container.appendChild(wrapper);
-
-          // Bind revoke events
-          container.querySelectorAll('.revoke-app-btn').forEach(function (btn) {
-            btn.addEventListener('click', async function () {
-              if (!confirm('确定要撤销此应用的授权吗？')) return;
-              var appId = this.dataset.appId;
-              try {
-                await window.LinkAuthAPI.revokeApp({
-                  link_id: linkId,
-                  manager_key: managerKey,
-                  app_id: appId
-                });
-                showToast('已撤销应用授权', 'success');
-                loadAuthorizedApps();
-              } catch (err) {
-                showToast(err.message || '撤销失败', 'error');
-              }
-            });
-          });
-
-        } catch (err) {
-          var errContainer = document.getElementById('appsList');
-          errContainer.textContent = '';
-          var errP = document.createElement('p');
-          errP.className = 'text-muted';
-          errP.textContent = '加载失败: ' + err.message;
-          errContainer.appendChild(errP);
-        }
-      }
-
-      // ---- Devices ----
-      async function loadDevices() {
-        try {
-          var result = await window.LinkAuthAPI.getDevices(linkId, managerKey);
-          var devices = result.devices || [];
-          var container = document.getElementById('devicesList');
-
-          container.textContent = '';
-
-          if (devices.length === 0) {
-            var emptyP = document.createElement('p');
-            emptyP.className = 'text-muted';
-            emptyP.textContent = '暂无已登录设备';
-            container.appendChild(emptyP);
-            return;
-          }
-
-          var wrapper = document.createElement('div');
-          wrapper.className = 'table-wrapper';
-          var table = document.createElement('table');
-
-          var thead = document.createElement('thead');
-          thead.innerHTML = '<tr><th>设备名称</th><th>最后活跃</th><th>状态</th><th>操作</th></tr>';
-          table.appendChild(thead);
-
-          var tbody = document.createElement('tbody');
-          devices.forEach(function (device) {
-            var tr = document.createElement('tr');
-
-            var tdName = document.createElement('td');
-            tdName.textContent = device.device_name || '未知设备';
-            tr.appendChild(tdName);
-
-            var tdActive = document.createElement('td');
-            tdActive.textContent = device.last_active || '-';
-            tr.appendChild(tdActive);
-
-            var tdStatus = document.createElement('td');
-            var statusSpan = document.createElement('span');
-            if (device.active) {
-              statusSpan.className = 'badge badge-success';
-              statusSpan.textContent = '在线';
-            } else {
-              statusSpan.className = 'badge badge-warning';
-              statusSpan.textContent = '离线';
-            }
-            tdStatus.appendChild(statusSpan);
-            tr.appendChild(tdStatus);
-
-            var tdAction = document.createElement('td');
-            var btn = document.createElement('button');
-            btn.className = 'btn btn-danger btn-sm logout-device-btn';
-            btn.setAttribute('data-device-id', device.device_id || '');
-            btn.textContent = '远程登出';
-            tdAction.appendChild(btn);
-            tr.appendChild(tdAction);
-
-            tbody.appendChild(tr);
-          });
-          table.appendChild(tbody);
-          wrapper.appendChild(table);
-          container.appendChild(wrapper);
-
-          // Bind logout events
-          container.querySelectorAll('.logout-device-btn').forEach(function (btn) {
-            btn.addEventListener('click', async function () {
-              if (!confirm('确定要远程登出此设备吗？')) return;
-              var deviceId = this.dataset.deviceId;
-              try {
-                await window.LinkAuthAPI.remoteLogout({
-                  link_id: linkId,
-                  manager_key: managerKey,
-                  device_id: deviceId
-                });
-                showToast('已远程登出设备', 'success');
-                loadDevices();
-              } catch (err) {
-                showToast(err.message || '登出失败', 'error');
-              }
-            });
-          });
-
-        } catch (err) {
-          var errContainer = document.getElementById('devicesList');
-          errContainer.textContent = '';
-          var errP = document.createElement('p');
-          errP.className = 'text-muted';
-          errP.textContent = '加载失败: ' + err.message;
-          errContainer.appendChild(errP);
-        }
-      }
-
-      // ---- Notifications ----
-      var notifPage = 1;
-      var notifTotalPages = 1;
-      var notifPageSize = 10;
-
-      // ---- Push Toggle ----
-      async function loadPushConfig() {
-        try {
-          var result = await window.LinkAuthAPI.getPushConfig(linkId, managerKey);
-          var toggle = document.getElementById('pushToggle');
-          toggle.checked = result.push_enabled === true;
-          toggle.disabled = false;
-        } catch (err) {
-          // Push config may not be available; disable toggle silently
-          var toggle = document.getElementById('pushToggle');
-          toggle.disabled = true;
-        }
-      }
-
-      document.getElementById('pushToggle').addEventListener('change', async function () {
-        var enabled = this.checked;
-        try {
-          await window.LinkAuthAPI.setPushConfig({
-            link_id: linkId,
-            manager_key: managerKey,
-            push_enabled: enabled
-          });
-          showToast(enabled ? '推送通知已开启' : '推送通知已关闭', 'success');
-        } catch (err) {
-          this.checked = !enabled;
-          showToast(err.message || '设置推送状态失败', 'error');
-        }
-      });
-
-      // ---- Load Notifications ----
-      async function loadNotifications(page) {
-        page = page || 1;
-        notifPage = page;
-
-        var listContainer = document.getElementById('notifList');
-        listContainer.innerHTML = '';
-        var loadingEl = document.createElement('p');
-        loadingEl.className = 'text-muted';
-        loadingEl.textContent = '加载中...';
-        listContainer.appendChild(loadingEl);
-
-        try {
-          var result = await window.LinkAuthAPI.getNotifications({
-            link_id: linkId,
-            manager_key: managerKey,
-            page: page,
-            page_size: notifPageSize
-          });
-
-          var notifications = result.notifications || [];
-          var total = result.total || 0;
-          var unreadCount = result.unread_count || 0;
-          notifTotalPages = Math.ceil(total / notifPageSize) || 1;
-
-          // Update unread badge
-          var unreadBadge = document.getElementById('notifUnreadBadge');
-          var navBadge = document.getElementById('notifNavBadge');
-          if (unreadCount > 0) {
-            unreadBadge.textContent = unreadCount + ' 条未读';
-            unreadBadge.classList.remove('hidden');
-            navBadge.textContent = unreadCount;
-            navBadge.classList.remove('hidden');
-          } else {
-            unreadBadge.classList.add('hidden');
-            navBadge.classList.add('hidden');
-          }
-
-          // Render list
-          listContainer.innerHTML = '';
-
-          if (notifications.length === 0) {
-            var emptyEl = document.createElement('p');
-            emptyEl.className = 'text-muted';
-            emptyEl.textContent = '暂无通知消息';
-            listContainer.appendChild(emptyEl);
-          } else {
-            notifications.forEach(function (notif) {
-              var item = document.createElement('div');
-              item.className = 'notif-item' + (notif.read ? '' : ' unread');
-              item.setAttribute('data-notif-id', notif.id || '');
-
-              var typeClass = notif.type || 'info';
-              if (['info', 'success', 'warning', 'danger'].indexOf(typeClass) === -1) {
-                typeClass = 'info';
-              }
-
-              var typeLabel = notif.type || '通知';
-              if (typeLabel === 'info') typeLabel = '信息';
-              if (typeLabel === 'success') typeLabel = '成功';
-              if (typeLabel === 'warning') typeLabel = '警告';
-              if (typeLabel === 'danger') typeLabel = '重要';
-
-              item.innerHTML =
-                '<div class="notif-header">' +
-                  '<span class="notif-title">' + escHtml(notif.title || '无标题') + '</span>' +
-                  '<span class="notif-time">' + escHtml(notif.time || notif.created_at || '-') + '</span>' +
-                '</div>' +
-                '<div class="notif-content">' + escHtml(notif.content || notif.message || '') + '</div>' +
-                '<div class="notif-footer">' +
-                  '<span class="notif-type-badge ' + typeClass + '">' + escHtml(typeLabel) + '</span>' +
-                  (notif.read ? '' : '<button class="notif-mark-read" data-notif-id="' + escHtml(notif.id || '') + '">标记已读</button>') +
-                '</div>';
-
-              listContainer.appendChild(item);
-            });
-
-            // Bind mark-as-read buttons
-            listContainer.querySelectorAll('.notif-mark-read').forEach(function (btn) {
-              btn.addEventListener('click', function (e) {
-                e.stopPropagation();
-                var notifId = this.getAttribute('data-notif-id');
-                markNotificationRead(notifId, this);
-              });
-            });
-          }
-
-          // Update pagination
-          updatePagination();
-
-        } catch (err) {
-          listContainer.innerHTML = '';
-          var errEl = document.createElement('p');
-          errEl.className = 'text-muted';
-          errEl.textContent = '加载失败: ' + (err.message || '未知错误');
-          listContainer.appendChild(errEl);
-        }
-      }
-
-      function updatePagination() {
-        var pagination = document.getElementById('notifPagination');
-        var prevBtn = document.getElementById('notifPrevBtn');
-        var nextBtn = document.getElementById('notifNextBtn');
-        var pageInfo = document.getElementById('notifPageInfo');
-
-        if (notifTotalPages <= 1) {
-          pagination.classList.add('hidden');
-          return;
-        }
-
-        pagination.classList.remove('hidden');
-        pageInfo.textContent = '第 ' + notifPage + ' / ' + notifTotalPages + ' 页';
-        prevBtn.disabled = notifPage <= 1;
-        nextBtn.disabled = notifPage >= notifTotalPages;
-      }
-
-      document.getElementById('notifPrevBtn').addEventListener('click', function () {
-        if (notifPage > 1) {
-          loadNotifications(notifPage - 1);
-        }
-      });
-
-      document.getElementById('notifNextBtn').addEventListener('click', function () {
-        if (notifPage < notifTotalPages) {
-          loadNotifications(notifPage + 1);
-        }
-      });
-
-      async function markNotificationRead(notifId, btnEl) {
-        try {
-          await window.LinkAuthAPI.markNotificationRead({
-            link_id: linkId,
-            manager_key: managerKey,
-            notification_id: notifId
-          });
-
-          // Update UI
-          var item = btnEl.closest('.notif-item');
-          if (item) {
-            item.classList.remove('unread');
-            btnEl.remove();
-          }
-
-          // Reload to refresh counts
-          loadNotifications(notifPage);
-
-          showToast('已标记为已读', 'success');
-        } catch (err) {
-          showToast(err.message || '标记失败', 'error');
-        }
-      }
-
-      function escHtml(s) {
-        if (s === null || s === undefined) return '';
-        var div = document.createElement('div');
-        div.textContent = String(s);
-        return div.innerHTML;
-      }
-
-      // ---- Disable Account ----
-      document.getElementById('disableAccountBtn').addEventListener('click', function () {
-        if (!confirm('确定要禁用此账号吗？此操作不可撤销！')) return;
-        if (!confirm('再次确认：禁用后你将无法登录和使用所有授权服务。')) return;
-
-        var reason = prompt('请输入禁用原因（可选）:', '');
-        if (reason === null) return; // cancelled
-
-        window.LinkAuthAPI.disableAccount({
-          link_id: linkId,
-          manager_key: managerKey,
-          reason: reason || '用户主动禁用'
-        }).then(function () {
-          showToast('账号已禁用', 'success');
-          // Clear session and redirect
-          sessionStorage.clear();
-          setTimeout(function () {
-            window.location.href = 'index.html';
-          }, 2000);
-        }).catch(function (err) {
-          showToast(err.message || '禁用失败', 'error');
+      // 临时账号延期
+      var extendBtn = document.getElementById('extendBtn');
+      if (extendBtn) {
+        extendBtn.addEventListener('click', function () {
+          var r = C.extendTempAccount(session.link_id);
+          alert(r.message || r.error);
+          if (r.ok) location.reload();
         });
-      });
-
-      // ---- Pre-fill link_id from session ----
-      var savedLinkId = sessionStorage.getItem('uc_link_id');
-      if (savedLinkId) {
-        verifyLinkIdInput.value = savedLinkId;
       }
 
-      // ---- Mobile Menu ----
-      document.getElementById('menuToggle').addEventListener('click', function () {
-        document.getElementById('navLinks').classList.toggle('open');
+      // 退出
+      document.getElementById('logoutBtn').addEventListener('click', function () {
+        C.clearSession();
+        window.location.href = 'login.html';
       });
-
-      // ---- Toast ----
-      function showToast(message, type) {
-        type = type || 'info';
-        var container = document.querySelector('.toast-container');
-        if (!container) {
-          container = document.createElement('div');
-          container.className = 'toast-container';
-          document.body.appendChild(container);
-        }
-
-        var toast = document.createElement('div');
-        toast.className = 'toast ' + type;
-
-        var icons = { success: '\u2713', error: '\u2717', warning: '\u26A0', info: '\u2139' };
-        toast.innerHTML =
-          '<span class="toast-icon">' + (icons[type] || '') + '</span>' +
-          '<span class="toast-message"></span>' +
-          '<button class="toast-close">&times;</button>';
-        toast.querySelector('.toast-message').textContent = message;
-
-        toast.querySelector('.toast-close').addEventListener('click', function () {
-          toast.remove();
-        });
-
-        container.appendChild(toast);
-
-        setTimeout(function () {
-          if (toast.parentNode) toast.remove();
-        }, 5000);
-      }
-
     })();
   </script>
 </body>

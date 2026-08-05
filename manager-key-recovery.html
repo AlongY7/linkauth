@@ -3,356 +3,120 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Arctic Compass LinkAuth 后台登录密钥找回">
-  <title>密钥找回 - Arctic Compass LinkAuth</title>
+  <title>找回管理密钥 - Arctic Compass LinkAuth</title>
   <link rel="stylesheet" href="css/style.css">
-  <script src="js/i18n.js"></script>
-  <script src="js/theme.js"></script>
-  <script src="js/icons.js"></script>
   <script src="js/sm3.js"></script>
-  <script src="js/config.js"></script>
-  <script src="js/api.js"></script>
+  <script src="js/linkauth-core.js"></script>
 </head>
 <body>
   <div class="auth-page">
-    <div class="header-controls" style="position:fixed;top:16px;right:16px;z-index:1000;" data-header-controls></div>
-    <div class="auth-container wide">
-      <h1 data-i18n="manager-key-recovery-title">后台登录密钥找回</h1>
-      <p class="subtitle" data-i18n="manager-key-recovery-subtitle">通过身份验证找回丢失的 manager_key</p>
+    <div class="auth-container">
+      <h1>找回管理密钥</h1>
+      <p class="subtitle">四因素验证：用户名 + 账号ID + 密码 + 安全问题</p>
 
       <form id="recoveryForm" novalidate>
-        <!-- Step 1: Username -->
         <div class="form-group">
-          <label class="form-label" for="loginAccount" data-i18n="recovery-username">登录账号或用户名 <span class="required">*</span></label>
-          <input type="text" id="loginAccount" class="form-input" placeholder="输入登录账号（如 Abc123@ArcticCompass_id）" required autocomplete="username">
-          <p class="form-hint" data-i18n="recovery-username-hint">输入完整登录账号，或仅输入前缀部分</p>
+          <label class="form-label" for="username">用户名</label>
+          <input type="text" id="username" class="form-input" placeholder="注册时的用户名（前缀部分）" required>
         </div>
-
-        <!-- Step 2: link_id -->
         <div class="form-group">
-          <label class="form-label" for="linkId" data-i18n="recovery-link-id">link_id <span class="required">*</span></label>
-          <input type="text" id="linkId" class="form-input" placeholder="输入注册时获取的 64 位十六进制 link_id" required maxlength="64" minlength="64">
-          <p class="form-hint" data-i18n="recovery-link-id-hint">注册成功后显示的 64 位十六进制身份标识符</p>
+          <label class="form-label" for="linkId">账号ID</label>
+          <input type="text" id="linkId" class="form-input" placeholder="完整账号，如 Abc123@ArcticCompass_id" required>
         </div>
-
-        <!-- Step 3: Password -->
         <div class="form-group">
-          <label class="form-label" for="password" data-i18n="recovery-password">登录密码 <span class="required">*</span></label>
-          <input type="password" id="password" class="form-input" placeholder="输入登录密码" required autocomplete="current-password">
+          <label class="form-label" for="password">密码</label>
+          <input type="password" id="password" class="form-input" placeholder="当前密码" required>
         </div>
 
-        <!-- Step 4: Security Questions (loaded dynamically) -->
-        <div class="form-group hidden" id="questionsSection">
-          <label class="form-label" data-i18n="recovery-questions">安全问题验证</label>
-          <div id="questionsContainer">
-            <!-- Questions will be loaded here -->
-          </div>
+        <div id="questionsPanel" class="hidden">
+          <p class="form-hint">请回答以下安全问题：</p>
+          <div id="questionsContainer"></div>
         </div>
 
-        <!-- Loading state for questions -->
-        <div class="form-group hidden" id="questionsLoading">
-          <p class="text-muted text-center" data-i18n="loading-questions">加载安全问题中...</p>
-        </div>
-
-        <!-- Error Display -->
         <div class="form-group hidden" id="errorContainer">
           <div class="form-error" id="errorMessage"></div>
-          <div class="form-error hidden" id="rateLimitMessage" style="margin-top:var(--spacing-sm);"></div>
+        </div>
+        <div class="form-group hidden" id="successContainer">
+          <div id="successMessage" style="color:var(--accent-success);padding:16px;background:var(--accent-success-light);border-radius:var(--border-radius);"></div>
         </div>
 
         <button type="submit" class="btn btn-primary btn-block" id="submitBtn">
-          <span class="spinner spinner-sm hidden" id="submitSpinner"></span>
-          <span id="submitText" data-i18n="verify-and-recover">验证并找回密钥</span>
+          <span id="submitText">下一步</span>
         </button>
       </form>
 
-      <div class="text-center mt-lg" style="font-size:0.85rem;">
-        <a href="login.html" data-i18n="back-to-login">返回登录</a>
-        <span style="margin:0 8px;color:var(--text-tertiary);">|</span>
-        <a href="register.html" data-i18n="create-account">创建新账号</a>
-      </div>
-    </div>
-  </div>
-
-  <!-- Success Modal -->
-  <div class="modal-overlay" id="successModal">
-    <div class="modal wide">
-      <h2 data-i18n="recovery-success-title">密钥找回成功</h2>
-      <p style="color:var(--accent-danger);font-weight:700;" data-i18n="recovery-success-warning">
-        请立即保存新密钥，此密钥仅显示一次，刷新页面后将无法再次查看！
+      <p class="text-center mt-md" style="font-size:0.85rem;">
+        <a href="login.html">返回登录</a>
       </p>
-
-      <div class="key-display danger">
-        <div class="key-label" data-i18n="recovery-new-manager-key">新的 manager_key（请立即备份！）</div>
-        <div class="key-value" id="resultManagerKey" style="font-size:1rem;font-weight:700;">-</div>
-      </div>
-
-      <div class="btn-group">
-        <button type="button" class="btn btn-ghost" id="copyKeyBtn" data-i18n="copy-key">复制密钥</button>
-        <button type="button" class="btn btn-primary" id="closeModalBtn" data-i18n="i-got-it">我已保存</button>
-      </div>
     </div>
   </div>
 
   <script>
     (function () {
       'use strict';
+      var C = window.LinkAuthCore;
+      var step = 1;
+      var formData = {};
 
-      var securityQuestions = [];
-      var questionsFetched = false;
-
-      // ---- Elements ----
       var form = document.getElementById('recoveryForm');
-      var loginAccountInput = document.getElementById('loginAccount');
-      var linkIdInput = document.getElementById('linkId');
-      var passwordInput = document.getElementById('password');
-      var questionsSection = document.getElementById('questionsSection');
-      var questionsContainer = document.getElementById('questionsContainer');
-      var questionsLoading = document.getElementById('questionsLoading');
       var submitBtn = document.getElementById('submitBtn');
-      var submitSpinner = document.getElementById('submitSpinner');
       var submitText = document.getElementById('submitText');
       var errorContainer = document.getElementById('errorContainer');
       var errorMessage = document.getElementById('errorMessage');
-      var rateLimitMessage = document.getElementById('rateLimitMessage');
-      var successModal = document.getElementById('successModal');
-      var copyKeyBtn = document.getElementById('copyKeyBtn');
-      var closeModalBtn = document.getElementById('closeModalBtn');
-
-      // ---- Toast Helper ----
-      function showToast(message, type) {
-        type = type || 'info';
-        var container = document.querySelector('.toast-container');
-        if (!container) {
-          container = document.createElement('div');
-          container.className = 'toast-container';
-          document.body.appendChild(container);
-        }
-
-        var toast = document.createElement('div');
-        toast.className = 'toast ' + type;
-
-        var icons = { success: '\u2713', error: '\u2717', warning: '\u26A0', info: '\u2139' };
-        toast.innerHTML =
-          '<span class="toast-icon">' + (icons[type] || '') + '</span>' +
-          '<span class="toast-message"></span>' +
-          '<button class="toast-close">&times;</button>';
-        toast.querySelector('.toast-message').textContent = message;
-
-        toast.querySelector('.toast-close').addEventListener('click', function () {
-          toast.remove();
-        });
-
-        container.appendChild(toast);
-
-        setTimeout(function () {
-          if (toast.parentNode) toast.remove();
-        }, 5000);
-      }
+      var successContainer = document.getElementById('successContainer');
+      var successMessage = document.getElementById('successMessage');
+      var questionsPanel = document.getElementById('questionsPanel');
+      var questionsContainer = document.getElementById('questionsContainer');
 
       function showError(msg) {
         errorMessage.textContent = msg;
         errorContainer.classList.remove('hidden');
       }
 
-      function hideError() {
-        errorContainer.classList.add('hidden');
-        rateLimitMessage.classList.add('hidden');
-      }
-
-      // ---- Fetch security questions when link_id is filled ----
-      linkIdInput.addEventListener('blur', async function () {
-        var linkId = linkIdInput.value.trim();
-        if (linkId.length !== 64) return;
-        if (questionsFetched) return;
-
-        hideError();
-        questionsLoading.classList.remove('hidden');
-        questionsSection.classList.add('hidden');
-
-        try {
-          var result = await window.LinkAuthAPI.getPasswordResetQuestions({ link_id: linkId });
-          securityQuestions = result.questions || [];
-
-          if (securityQuestions.length === 0) {
-            showToast('未找到该账号的安全问题，请确认 link_id 是否正确', 'warning');
-            return;
-          }
-
-          // Render questions
-          questionsContainer.innerHTML = '';
-          securityQuestions.forEach(function (q, i) {
-            var div = document.createElement('div');
-            div.className = 'form-group';
-            div.innerHTML =
-              '<label class="form-label">' + (i + 1) + '. ' + escHtml(q.question) + ' <span class="required">*</span></label>' +
-              '<input type="text" class="form-input question-answer" placeholder="输入答案" required maxlength="128" data-index="' + i + '">';
-            questionsContainer.appendChild(div);
-          });
-
-          questionsFetched = true;
-          questionsSection.classList.remove('hidden');
-          questionsLoading.classList.add('hidden');
-
-        } catch (err) {
-          showError(err.message || '获取安全问题失败');
-          showToast(err.message || '获取安全问题失败', 'error');
-        } finally {
-          questionsLoading.classList.add('hidden');
-        }
-      });
-
-      // Reset questions fetch when link_id changes
-      linkIdInput.addEventListener('input', function () {
-        if (linkIdInput.value.trim().length !== 64) {
-          questionsFetched = false;
-          securityQuestions = [];
-          questionsSection.classList.add('hidden');
-          questionsContainer.innerHTML = '';
-        }
-      });
-
-      function escHtml(s) {
-        var div = document.createElement('div');
-        div.textContent = String(s);
-        return div.innerHTML;
-      }
-
-      // ---- Form Validation ----
-      function validateForm() {
-        var loginAccount = loginAccountInput.value.trim();
-        var linkId = linkIdInput.value.trim();
-        var password = passwordInput.value;
-
-        if (!loginAccount) {
-          return '请输入登录账号或用户名';
-        }
-        if (!linkId || linkId.length !== 64) {
-          return '请输入完整的 64 位 link_id';
-        }
-        if (!/^[0-9a-fA-F]{64}$/.test(linkId)) {
-          return 'link_id 格式不正确，应为 64 位十六进制字符';
-        }
-        if (!password) {
-          return '请输入登录密码';
-        }
-        if (securityQuestions.length === 0) {
-          return '请先填写 link_id 以加载安全问题';
-        }
-
-        var answerInputs = questionsContainer.querySelectorAll('.question-answer');
-        for (var i = 0; i < answerInputs.length; i++) {
-          if (!answerInputs[i].value.trim()) {
-            return '请填写所有安全问题的答案';
-          }
-        }
-        return null;
-      }
-
-      // ---- Form Submission ----
-      form.addEventListener('submit', async function (e) {
+      form.addEventListener('submit', function (e) {
         e.preventDefault();
+        errorContainer.classList.add('hidden');
+        successContainer.classList.add('hidden');
 
-        var error = validateForm();
-        if (error) {
-          showError(error);
-          return;
-        }
+        if (step === 1) {
+          var username = document.getElementById('username').value.trim();
+          var linkId = document.getElementById('linkId').value.trim();
+          var password = document.getElementById('password').value;
 
-        hideError();
+          if (!username) return showError('请输入用户名');
+          if (!linkId) return showError('请输入账号ID');
+          if (!password) return showError('请输入密码');
 
-        // Collect answers
-        var answerInputs = questionsContainer.querySelectorAll('.question-answer');
-        var answers = [];
-        answerInputs.forEach(function (input, i) {
-          answers.push({
-            question: securityQuestions[i].question,
-            answer_hash: window.SM3.hash(input.value.trim())
-          });
-        });
-
-        // SM3 hash password
-        var hashedPassword = window.SM3.hash(passwordInput.value);
-
-        // Set loading state
-        submitBtn.disabled = true;
-        submitSpinner.classList.remove('hidden');
-        submitText.textContent = '验证中...';
-
-        try {
-          var result = await window.LinkAuthAPI.recoverManagerKey({
-            login_account: loginAccountInput.value.trim(),
-            link_id: linkIdInput.value.trim(),
-            password_hash: hashedPassword,
-            security_answers: answers
-          });
-
-          // Show success modal
-          document.getElementById('resultManagerKey').textContent = result.manager_key || '-';
-          successModal.classList.add('active');
-
-        } catch (err) {
-          showError(err.message || '验证失败，请重试');
-
-          // Check for rate limit info
-          if (err.data && err.data.retry_after) {
-            rateLimitMessage.textContent = '请等待 ' + err.data.retry_after + ' 秒后重试';
-            rateLimitMessage.classList.remove('hidden');
+          var questions = C.getSecurityQuestions(linkId);
+          if (!questions || questions.length === 0) {
+            return showError('该账号未设置安全问题，无法找回管理密钥');
           }
 
-          showToast(err.message || '密钥找回失败', 'error');
-        } finally {
-          submitBtn.disabled = false;
-          submitSpinner.classList.add('hidden');
+          questionsContainer.innerHTML = questions.map(function (q, i) {
+            return '<div class="form-group"><label class="form-label">' + q.question + '</label><input type="text" class="form-input sq-answer" placeholder="答案" required></div>';
+          }).join('');
+
+          formData = { username: username, linkId: linkId, password: password };
+          questionsPanel.classList.remove('hidden');
+          document.getElementById('username').disabled = true;
+          document.getElementById('linkId').disabled = true;
+          document.getElementById('password').disabled = true;
           submitText.textContent = '验证并找回密钥';
-        }
-      });
-
-      // ---- Copy Key ----
-      copyKeyBtn.addEventListener('click', function () {
-        var key = document.getElementById('resultManagerKey').textContent;
-        if (!key || key === '-') {
-          showToast('没有可复制的密钥', 'warning');
-          return;
-        }
-
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard.writeText(key).then(function () {
-            showToast('manager_key 已复制到剪贴板', 'success');
-          }).catch(function () {
-            fallbackCopy(key);
-          });
+          step = 2;
         } else {
-          fallbackCopy(key);
+          var answers = [];
+          document.querySelectorAll('.sq-answer').forEach(function (el) {
+            answers.push(el.value.trim());
+          });
+
+          var r = C.recoverManagerKey(formData.username, formData.linkId, formData.password, answers);
+          if (!r.ok) return showError(r.error);
+
+          successMessage.innerHTML = '<strong>管理密钥已找回！</strong><br><br>新管理密钥：<code style="font-size:1.1rem;word-break:break-all;">' + r.manager_key + '</code><br><br><span style="color:var(--accent-danger);">请务必妥善保管，旧密钥已失效。</span>';
+          successContainer.classList.remove('hidden');
+          submitBtn.classList.add('hidden');
         }
       });
-
-      function fallbackCopy(text) {
-        var textarea = document.createElement('textarea');
-        textarea.value = text;
-        textarea.style.position = 'fixed';
-        textarea.style.opacity = '0';
-        document.body.appendChild(textarea);
-        textarea.select();
-        try {
-          document.execCommand('copy');
-          showToast('manager_key 已复制到剪贴板', 'success');
-        } catch (e) {
-          showToast('复制失败，请手动复制', 'error');
-        }
-        document.body.removeChild(textarea);
-      }
-
-      // ---- Close Modal ----
-      closeModalBtn.addEventListener('click', function () {
-        successModal.classList.remove('active');
-        window.location.href = 'login.html';
-      });
-
-      // Clear errors on input
-      loginAccountInput.addEventListener('input', hideError);
-      passwordInput.addEventListener('input', hideError);
-
     })();
   </script>
 </body>
