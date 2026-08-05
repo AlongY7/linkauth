@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Arctic Compass LinkAuth OAuth 授权">
+  <title>授权 - Arctic Compass LinkAuth</title>
+  <link rel="stylesheet" href="css/style.css">
+  <script src="js/i18n.js"></script>
+  <script src="js/theme.js"></script>
+  <script src="js/icons.js"></script>
+  <script src="js/sm3.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/api.js"></script>
+</head>
+<body>
+  <div class="authorize-page">
+    <div class="header-controls" style="position:fixed;top:16px;right:16px;z-index:1000;" data-header-controls></div>
+    <div class="authorize-card">
+      <div class="app-icon" id="appIcon">&#x1F4F1;</div>
+      <h2 class="app-name" id="appName">正在请求授权</h2>
+      <p class="auth-info" id="authInfo">
+        <span id="userLinkId">-</span> 将授权以下权限给此应用
+      </p>
+
+      <div class="permissions">
+        <ul id="permissionsList">
+          <li>查看你的用户标识（link_id）</li>
+          <li>验证你的身份信息</li>
+        </ul>
+      </div>
+
+      <div class="btn-group" style="justify-content:center;">
+        <button class="btn btn-primary" id="authorizeBtn">授权</button>
+        <button class="btn btn-ghost" id="rejectBtn">拒绝</button>
+      </div>
+
+      <p class="text-muted mt-md" style="font-size:0.8rem;">
+        授权后你将跳转回应用
+      </p>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      'use strict';
+
+      // Parse URL parameters
+      var params = new URLSearchParams(window.location.search);
+      var clientId = params.get('client_id');
+      var redirectUri = params.get('redirect_uri');
+      var state = params.get('state');
+      var responseType = params.get('response_type') || 'code';
+      var scope = params.get('scope') || '';
+
+      // Check if user is logged in
+      var linkId = sessionStorage.getItem('link_id');
+      var authToken = sessionStorage.getItem('auth_token');
+
+      if (!linkId || !authToken) {
+        // Not logged in - save redirect and go to login
+        sessionStorage.setItem('oauth_redirect', window.location.href);
+        window.location.href = 'login.html';
+        return;
+      }
+
+      // Display user info
+      document.getElementById('userLinkId').textContent = linkId;
+
+      // Parse scope for permissions display
+      if (scope) {
+        var scopeList = scope.split(/\s+/).filter(Boolean);
+        var permissionsList = document.getElementById('permissionsList');
+        permissionsList.innerHTML = '';
+
+        var scopeDescriptions = {
+          'openid': '查看你的身份标识（link_id）',
+          'profile': '查看你的用户信息',
+          'email': '查看你的邮箱地址',
+          'phone': '查看你的手机号'
+        };
+
+        if (scopeList.length > 0) {
+          scopeList.forEach(function (s) {
+            var li = document.createElement('li');
+            li.textContent = scopeDescriptions[s] || '访问: ' + s;
+            permissionsList.appendChild(li);
+          });
+        } else {
+          var li = document.createElement('li');
+          li.textContent = '查看你的用户标识（link_id）';
+          permissionsList.appendChild(li);
+        }
+      }
+
+      // ---- Authorize ----
+      document.getElementById('authorizeBtn').addEventListener('click', async function () {
+        this.disabled = true;
+        this.textContent = '授权中...';
+
+        try {
+          var result = await window.LinkAuthAPI.authorize({
+            link_id: linkId,
+            client_id: clientId,
+            redirect_uri: redirectUri,
+            state: state,
+            action: 'approve'
+          });
+
+          // Redirect to callback URL
+          if (result.redirect_url) {
+            window.location.href = result.redirect_url;
+          } else if (redirectUri) {
+            // Build callback URL manually
+            var callbackUrl = redirectUri;
+            var separator = callbackUrl.indexOf('?') >= 0 ? '&' : '?';
+            callbackUrl += separator + 'code=' + encodeURIComponent(result.code || '');
+            if (state) {
+              callbackUrl += '&state=' + encodeURIComponent(state);
+            }
+            window.location.href = callbackUrl;
+          } else {
+            showToast('授权成功，但未指定回调地址', 'success');
+          }
+
+        } catch (err) {
+          showToast(err.message || '授权失败', 'error');
+          this.disabled = false;
+          this.textContent = '授权';
+        }
+      });
+
+      // ---- Reject ----
+      document.getElementById('rejectBtn').addEventListener('click', function () {
+        if (redirectUri) {
+          var callbackUrl = redirectUri;
+          var separator = callbackUrl.indexOf('?') >= 0 ? '&' : '?';
+          callbackUrl += separator + 'error=access_denied';
+          if (state) {
+            callbackUrl += '&state=' + encodeURIComponent(state);
+          }
+          window.location.href = callbackUrl;
+        } else {
+          showToast('已拒绝授权', 'info');
+        }
+      });
+
+      // ---- Toast Helper ----
+      function showToast(message, type) {
+        type = type || 'info';
+        var container = document.querySelector('.toast-container');
+        if (!container) {
+          container = document.createElement('div');
+          container.className = 'toast-container';
+          document.body.appendChild(container);
+        }
+
+        var toast = document.createElement('div');
+        toast.className = 'toast ' + type;
+
+        var icons = { success: '\u2713', error: '\u2717', warning: '\u26A0', info: '\u2139' };
+        toast.innerHTML =
+          '<span class="toast-icon">' + (icons[type] || '') + '</span>' +
+          '<span class="toast-message"></span>' +
+          '<button class="toast-close">&times;</button>';
+        toast.querySelector('.toast-message').textContent = message;
+
+        toast.querySelector('.toast-close').addEventListener('click', function () {
+          toast.remove();
+        });
+
+        container.appendChild(toast);
+
+        setTimeout(function () {
+          if (toast.parentNode) toast.remove();
+        }, 5000);
+      }
+
+    })();
+  </script>
+</body>
+</html>

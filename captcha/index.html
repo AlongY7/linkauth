@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>图形验证码 - Arctic Compass LinkAuth</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+.captcha-container {
+  width: 400px;
+  margin: 50px auto;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.captcha-box {
+  position: relative;
+  width: 400px;
+  height: 200px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #1a1a2e;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.captcha-bg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.captcha-slider-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.captcha-slider-piece {
+  position: absolute;
+  width: 60px;
+  height: 60px;
+  pointer-events: none;
+}
+
+/* 滑块轨道 */
+.slider-track {
+  position: relative;
+  width: 400px;
+  height: 44px;
+  margin-top: 16px;
+  background: #e8e8e8;
+  border-radius: 22px;
+  overflow: hidden;
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.slider-track-text {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #999;
+  font-size: 14px;
+  letter-spacing: 2px;
+  transition: opacity 0.2s;
+  pointer-events: none;
+}
+
+.slider-progress {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 0;
+  background: linear-gradient(90deg, #a8e6cf, #88d8b0);
+  border-radius: 22px;
+  transition: width 0.05s linear;
+  pointer-events: none;
+}
+
+.slider-btn {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 40px;
+  height: 40px;
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+  cursor: grab;
+  transition: transform 0.1s, box-shadow 0.2s;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.slider-btn:active { cursor: grabbing; transform: scale(1.05); box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+
+.slider-btn svg { width: 20px; height: 20px; fill: #bbb; pointer-events: none; }
+
+/* 状态动画 */
+.slider-btn.success { background: #4caf50; }
+.slider-btn.success svg { fill: #fff; }
+.slider-btn.fail { background: #f44336; animation: shake 0.4s ease; }
+.slider-btn.fail svg { fill: #fff; }
+
+.slider-track.success .slider-progress { background: linear-gradient(90deg, #66bb6a, #43a047); }
+.slider-track.fail .slider-progress { background: linear-gradient(90deg, #ef5350, #e53935); }
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-8px); }
+  50% { transform: translateX(8px); }
+  75% { transform: translateX(-4px); }
+}
+
+/* 提示信息 */
+.captcha-hint {
+  text-align: center;
+  margin-top: 10px;
+  font-size: 13px;
+  color: #888;
+  min-height: 20px;
+}
+
+.captcha-hint.error { color: #f44336; }
+.captcha-hint.success { color: #4caf50; }
+
+/* 刷新按钮 */
+.captcha-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+  gap: 8px;
+}
+
+.captcha-refresh {
+  background: none;
+  border: none;
+  color: #666;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.captcha-refresh:hover { background: #f0f0f0; color: #333; }
+
+/* 加载状态 */
+.captcha-loading {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.5);
+  color: #fff;
+  font-size: 14px;
+  border-radius: 8px;
+}
+
+.spinner {
+  width: 24px;
+  height: 24px;
+  border: 3px solid rgba(255,255,255,0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin-right: 8px;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<div class="captcha-container">
+  <div class="captcha-box" id="captchaBox">
+    <img class="captcha-bg" id="captchaBg" alt="验证码背景" />
+    <div class="captcha-slider-overlay" id="sliderOverlay"></div>
+    <div class="captcha-loading" id="captchaLoading" style="display:none;">
+      <div class="spinner"></div>加载中...
+    </div>
+  </div>
+
+  <div class="slider-track" id="sliderTrack">
+    <div class="slider-progress" id="sliderProgress"></div>
+    <div class="slider-track-text" id="sliderText">向右拖动滑块完成验证</div>
+    <div class="slider-btn" id="sliderBtn">
+      <svg viewBox="0 0 24 24"><path d="M14 17l5-5-5-5v3H3v4h11v3z"/></svg>
+    </div>
+  </div>
+
+  <div class="captcha-hint" id="captchaHint"></div>
+
+  <div class="captcha-actions">
+    <button class="captcha-refresh" id="refreshBtn">刷新验证码</button>
+  </div>
+</div>
+
+<script>
+(function() {
+  const captchaBox = document.getElementById('captchaBox');
+  const captchaBg = document.getElementById('captchaBg');
+  const sliderOverlay = document.getElementById('sliderOverlay');
+  const sliderTrack = document.getElementById('sliderTrack');
+  const sliderProgress = document.getElementById('sliderProgress');
+  const sliderText = document.getElementById('sliderText');
+  const sliderBtn = document.getElementById('sliderBtn');
+  const captchaHint = document.getElementById('captchaHint');
+  const refreshBtn = document.getElementById('refreshBtn');
+  const captchaLoading = document.getElementById('captchaLoading');
+
+  let captchaData = null;
+  let isDragging = false;
+  let startX = 0;
+  let startLeft = 0;
+  let trajectory = [];
+  let dragStartTime = 0;
+  let verified = false;
+  let sliverX = 0, sliverY = 0;
+
+  // 加载验证码
+  async function loadCaptcha() {
+    showLoading(true);
+    resetUI();
+    try {
+      const res = await fetch('/api/captcha/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const json = await res.json();
+      if (json.code === 0) {
+        captchaData = json.data;
+        captchaBg.src = 'data:image/svg+xml;base64,' + captchaData.background;
+
+        // 在滑块覆盖层上放置滑块碎片
+        const sliderImg = document.createElement('img');
+        sliderImg.src = 'data:image/svg+xml;base64,' + captchaData.slider;
+        sliderImg.className = 'captcha-slider-piece';
+        sliderImg.style.left = '0px';
+        sliderImg.style.top = '0px';
+        sliderOverlay.innerHTML = '';
+        sliderOverlay.appendChild(sliderImg);
+      } else {
+        showHint('验证码加载失败，请重试', 'error');
+      }
+    } catch (err) {
+      showHint('网络错误，请检查连接', 'error');
+      console.error('Captcha load error:', err);
+    }
+    showLoading(false);
+  }
+
+  function showLoading(show) {
+    captchaLoading.style.display = show ? 'flex' : 'none';
+  }
+
+  function resetUI() {
+    sliderBtn.style.left = '2px';
+    sliderBtn.className = 'slider-btn';
+    sliderProgress.style.width = '0';
+    sliderTrack.className = 'slider-track';
+    sliderText.style.opacity = '1';
+    sliderText.textContent = '向右拖动滑块完成验证';
+    captchaHint.textContent = '';
+    captchaHint.className = 'captcha-hint';
+    verified = false;
+    trajectory = [];
+
+    const piece = sliderOverlay.querySelector('.captcha-slider-piece');
+    if (piece) { piece.style.left = '0px'; piece.style.top = '0px'; }
+  }
+
+  function showHint(msg, type) {
+    captchaHint.textContent = msg;
+    captchaHint.className = 'captcha-hint ' + (type || '');
+  }
+
+  // 拖动事件
+  function getEventX(e) {
+    return e.touches ? e.touches[0].clientX : e.clientX;
+  }
+  function getEventY(e) {
+    return e.touches ? e.touches[0].clientY : e.clientY;
+  }
+
+  function onDragStart(e) {
+    if (verified) return;
+    e.preventDefault();
+    isDragging = true;
+    startX = getEventX(e);
+    startLeft = parseInt(sliderBtn.style.left) || 2;
+    dragStartTime = Date.now();
+    trajectory = [{ x: 0, y: 0, t: 0 }];
+    sliderBtn.style.transition = 'none';
+  }
+
+  function onDragMove(e) {
+    if (!isDragging) return;
+    e.preventDefault();
+    const currentX = getEventX(e);
+    const currentY = getEventY(e);
+    const deltaX = currentX - startX;
+    const maxLeft = sliderTrack.offsetWidth - sliderBtn.offsetWidth - 4;
+    const newLeft = Math.max(2, Math.min(maxLeft, startLeft + deltaX));
+
+    sliderBtn.style.left = newLeft + 'px';
+    sliderProgress.style.width = (newLeft + sliderBtn.offsetWidth / 2) + 'px';
+
+    // 同步滑块碎片位置
+    const piece = sliderOverlay.querySelector('.captcha-slider-piece');
+    if (piece && captchaData) {
+      const ratio = newLeft / (sliderTrack.offsetWidth - sliderBtn.offsetWidth - 4);
+      const maxPieceX = captchaData.width - captchaData.slider_width;
+      piece.style.left = (ratio * maxPieceX) + 'px';
+    }
+
+    // 记录轨迹
+    const now = Date.now();
+    trajectory.push({ x: deltaX, y: currentY - (e.touches ? e.touches[0].clientY : e.clientY), t: now - dragStartTime });
+
+    // 接近目标时文本淡出
+    const progress = newLeft / maxLeft;
+    if (progress > 0.8) {
+      sliderText.style.opacity = Math.max(0, 1 - (progress - 0.8) * 5);
+    } else {
+      sliderText.style.opacity = '1';
+    }
+  }
+
+  async function onDragEnd(e) {
+    if (!isDragging) return;
+    isDragging = false;
+    sliderBtn.style.transition = 'transform 0.1s, box-shadow 0.2s';
+
+    const currentX = getEventX(e);
+    const deltaX = currentX - startX;
+
+    // 判断是否拖动到了最右端
+    const maxLeft = sliderTrack.offsetWidth - sliderBtn.offsetWidth - 4;
+    const finalLeft = parseInt(sliderBtn.style.left) || 2;
+
+    if (finalLeft >= maxLeft - 5) {
+      // 到达最右端，提交验证
+      await submitVerification(finalLeft);
+    } else {
+      // 未到达最右端，回弹
+      animateReset();
+      showHint('请将滑块拖动到最右侧', 'error');
+    }
+  }
+
+  async function submitVerification(finalLeft) {
+    showHint('验证中...', '');
+    sliderText.style.opacity = '0';
+
+    try {
+      const res = await fetch('/api/captcha/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          captcha_id: captchaData.captcha_id,
+          x_offset: Math.round((finalLeft / (sliderTrack.offsetWidth - sliderBtn.offsetWidth - 4)) * (captchaData.width - captchaData.slider_width)),
+          trajectory: trajectory,
+        }),
+      });
+      const json = await res.json();
+
+      if (json.code === 0 && json.data.valid) {
+        // 验证成功
+        verified = true;
+        sliderBtn.className = 'slider-btn success';
+        sliderTrack.className = 'slider-track success';
+        sliderText.textContent = '验证通过';
+        sliderText.style.opacity = '1';
+        showHint('验证成功', 'success');
+
+        // 存储 captcha_token 供后续使用
+        if (json.data.captcha_token) {
+          window.__captchaToken = json.data.captcha_token;
+          // 触发自定义事件
+          window.dispatchEvent(new CustomEvent('captcha-verified', {
+            detail: { captcha_token: json.data.captcha_token }
+          }));
+        }
+      } else {
+        // 验证失败
+        const reason = json.data.reason;
+        const failMsg = reason === 'position_mismatch' ? '位置不匹配，请重试' :
+                        reason === 'bot_detected' ? '检测到异常行为，请重试' :
+                        reason === 'captcha_expired' ? '验证码已过期，请刷新' : '验证失败，请重试';
+        showHint(failMsg, 'error');
+        sliderBtn.className = 'slider-btn fail';
+        sliderTrack.className = 'slider-track fail';
+        setTimeout(() => { resetUI(); loadCaptcha(); }, 800);
+      }
+    } catch (err) {
+      showHint('网络错误，请重试', 'error');
+      console.error('Captcha verify error:', err);
+      animateReset();
+    }
+  }
+
+  function animateReset() {
+    sliderBtn.style.transition = 'left 0.3s ease';
+    sliderBtn.style.left = '2px';
+    sliderProgress.style.transition = 'width 0.3s ease';
+    sliderProgress.style.width = '0';
+    sliderText.style.opacity = '1';
+
+    const piece = sliderOverlay.querySelector('.captcha-slider-piece');
+    if (piece) {
+      piece.style.transition = 'left 0.3s ease';
+      piece.style.left = '0px';
+    }
+
+    setTimeout(() => {
+      sliderBtn.style.transition = 'transform 0.1s, box-shadow 0.2s';
+      sliderProgress.style.transition = 'width 0.05s linear';
+      if (piece) piece.style.transition = 'none';
+    }, 300);
+  }
+
+  // 事件绑定
+  sliderBtn.addEventListener('mousedown', onDragStart);
+  sliderBtn.addEventListener('touchstart', onDragStart, { passive: false });
+  document.addEventListener('mousemove', onDragMove);
+  document.addEventListener('touchmove', onDragMove, { passive: false });
+  document.addEventListener('mouseup', onDragEnd);
+  document.addEventListener('touchend', onDragEnd);
+
+  refreshBtn.addEventListener('click', () => {
+    if (isDragging) return;
+    loadCaptcha();
+  });
+
+  // 初始加载
+  loadCaptcha();
+
+  // 暴露 API
+  window.ArcticCaptcha = {
+    getToken: () => window.__captchaToken || null,
+    reset: loadCaptcha,
+    isVerified: () => verified,
+  };
+})();
+</script>
+</body>
+</html>

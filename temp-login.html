@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Arctic Compass LinkAuth 临时登录">
+  <title>临时登录 - Arctic Compass LinkAuth</title>
+  <link rel="stylesheet" href="css/style.css">
+  <script src="js/i18n.js"></script>
+  <script src="js/theme.js"></script>
+  <script src="js/icons.js"></script>
+  <script src="js/sm3.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/api.js"></script>
+</head>
+<body>
+  <div class="auth-page">
+    <div class="header-controls" style="position:fixed;top:16px;right:16px;z-index:1000;" data-header-controls></div>
+    <div class="auth-container">
+      <h1 data-i18n="temp-login-title">一键临时登录</h1>
+      <p class="subtitle" data-i18n="temp-login-subtitle">快速创建一个24小时临时账号，无需注册即可体验</p>
+
+      <div class="text-center mb-lg" style="padding: var(--spacing-xl) 0;">
+        <button type="button" class="btn btn-primary" id="tempLoginBtn" style="font-size:1.1rem;padding:16px 40px;min-width:220px;">
+          <span class="spinner spinner-sm hidden" id="btnSpinner"></span>
+          <span id="btnText" data-i18n="temp-login-btn">一键临时登录</span>
+        </button>
+      </div>
+
+      <!-- Session Info (hidden initially) -->
+      <div class="hidden" id="sessionInfo">
+        <div class="card" style="background:var(--accent-success-light);border-color:var(--accent-success);">
+          <div class="card-header">
+            <h3 data-i18n="session-active">当前会话</h3>
+            <span class="badge badge-success" data-i18n="session-status-active">活跃</span>
+          </div>
+          <div class="card-body">
+            <div class="form-group">
+              <label class="form-label" data-i18n="temp-username">用户名</label>
+              <div class="form-input" style="background:var(--bg-tertiary);" id="sessionUsername" readonly>-</div>
+            </div>
+            <div class="form-group">
+              <label class="form-label" data-i18n="temp-login-account">登录账号</label>
+              <div class="form-input" style="background:var(--bg-tertiary);" id="sessionLoginAccount" readonly>-</div>
+            </div>
+            <div class="form-group">
+              <label class="form-label" data-i18n="temp-expire-time">过期时间</label>
+              <div class="form-input" style="background:var(--bg-tertiary);" id="sessionExpireTime" readonly>-</div>
+            </div>
+            <div class="form-group">
+              <label class="form-label" data-i18n="temp-extend-count">剩余续期次数</label>
+              <div class="form-input" style="background:var(--bg-tertiary);" id="extendCount" readonly>-</div>
+            </div>
+            <div class="form-group hidden" id="extendError">
+              <div class="form-error" id="extendErrorMessage"></div>
+            </div>
+            <button type="button" class="btn btn-primary btn-block" id="extendBtn">
+              <span class="spinner spinner-sm hidden" id="extendSpinner"></span>
+              <span id="extendBtnText" data-i18n="extend-session">续期会话（24小时）</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Error Display -->
+      <div class="form-group hidden" id="errorContainer">
+        <div class="form-error" id="errorMessage"></div>
+      </div>
+
+      <div class="text-center mt-lg" style="font-size:0.85rem;">
+        <a href="login.html" data-i18n="back-to-login">返回登录</a>
+        <span style="margin:0 8px;color:var(--text-tertiary);">|</span>
+        <a href="register.html" data-i18n="create-account">创建正式账号</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Warning Modal -->
+  <div class="modal-overlay" id="warningModal">
+    <div class="modal">
+      <h2 data-i18n="temp-login-warning-title">临时登录提醒</h2>
+      <p data-i18n="temp-login-warning-text" style="line-height:1.8;">
+        此账号仅供临时使用，有效期为24小时，到期后账号数据将自动销毁且无法恢复。临时账号不支持后台登录，仅可用于前端页面临时访问。
+      </p>
+      <div class="btn-group">
+        <button type="button" class="btn btn-ghost" id="cancelBtn" data-i18n="cancel">取消</button>
+        <button type="button" class="btn btn-primary" id="confirmBtn" data-i18n="confirm-login">确认并登录</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Credentials Modal -->
+  <div class="modal-overlay" id="credentialsModal">
+    <div class="modal wide">
+      <h2 data-i18n="temp-credentials-title">临时账号已创建</h2>
+      <p style="color:var(--accent-danger);font-weight:700;" data-i18n="temp-credentials-warning">
+        请立即保存以下信息，刷新页面后将无法再次查看！
+      </p>
+
+      <div class="key-display success">
+        <div class="key-label" data-i18n="temp-username">用户名</div>
+        <div class="key-value" id="credUsername">-</div>
+      </div>
+
+      <div class="key-display">
+        <div class="key-label" data-i18n="temp-login-account">登录账号</div>
+        <div class="key-value" id="credLoginAccount">-</div>
+      </div>
+
+      <div class="key-display danger">
+        <div class="key-label" data-i18n="temp-password">密码</div>
+        <div class="key-value" id="credPassword" style="font-size:1rem;font-weight:700;">-</div>
+      </div>
+
+      <div class="key-display warning">
+        <div class="key-label" data-i18n="temp-expire-time">过期时间</div>
+        <div class="key-value" id="credExpireTime">-</div>
+      </div>
+
+      <button type="button" class="btn btn-primary btn-block" id="gotItBtn" data-i18n="i-got-it">我已保存，进入会话</button>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      'use strict';
+
+      var tempCredentials = null;
+      var extendCountRemaining = 0;
+
+      // ---- Elements ----
+      var tempLoginBtn = document.getElementById('tempLoginBtn');
+      var btnSpinner = document.getElementById('btnSpinner');
+      var btnText = document.getElementById('btnText');
+      var warningModal = document.getElementById('warningModal');
+      var cancelBtn = document.getElementById('cancelBtn');
+      var confirmBtn = document.getElementById('confirmBtn');
+      var credentialsModal = document.getElementById('credentialsModal');
+      var gotItBtn = document.getElementById('gotItBtn');
+      var sessionInfo = document.getElementById('sessionInfo');
+      var extendBtn = document.getElementById('extendBtn');
+      var extendSpinner = document.getElementById('extendSpinner');
+      var extendBtnText = document.getElementById('extendBtnText');
+      var extendError = document.getElementById('extendError');
+      var extendErrorMessage = document.getElementById('extendErrorMessage');
+      var errorContainer = document.getElementById('errorContainer');
+      var errorMessage = document.getElementById('errorMessage');
+
+      // ---- Toast Helper ----
+      function showToast(message, type) {
+        type = type || 'info';
+        var container = document.querySelector('.toast-container');
+        if (!container) {
+          container = document.createElement('div');
+          container.className = 'toast-container';
+          document.body.appendChild(container);
+        }
+
+        var toast = document.createElement('div');
+        toast.className = 'toast ' + type;
+
+        var icons = { success: '\u2713', error: '\u2717', warning: '\u26A0', info: '\u2139' };
+        toast.innerHTML =
+          '<span class="toast-icon">' + (icons[type] || '') + '</span>' +
+          '<span class="toast-message"></span>' +
+          '<button class="toast-close">&times;</button>';
+        toast.querySelector('.toast-message').textContent = message;
+
+        toast.querySelector('.toast-close').addEventListener('click', function () {
+          toast.remove();
+        });
+
+        container.appendChild(toast);
+
+        setTimeout(function () {
+          if (toast.parentNode) toast.remove();
+        }, 5000);
+      }
+
+      function showError(msg) {
+        errorMessage.textContent = msg;
+        errorContainer.classList.remove('hidden');
+      }
+
+      function hideError() {
+        errorContainer.classList.add('hidden');
+      }
+
+      // ---- Step 1: Show warning modal ----
+      tempLoginBtn.addEventListener('click', function () {
+        hideError();
+        warningModal.classList.add('active');
+      });
+
+      // ---- Step 1b: Cancel ----
+      cancelBtn.addEventListener('click', function () {
+        warningModal.classList.remove('active');
+      });
+
+      // Close warning modal on overlay click
+      warningModal.addEventListener('click', function (e) {
+        if (e.target === warningModal) {
+          warningModal.classList.remove('active');
+        }
+      });
+
+      // ---- Step 2: Confirm and create temp account ----
+      confirmBtn.addEventListener('click', async function () {
+        warningModal.classList.remove('active');
+
+        tempLoginBtn.disabled = true;
+        btnSpinner.classList.remove('hidden');
+        btnText.textContent = '创建中...';
+
+        try {
+          var result = await window.LinkAuthAPI.tempLoginCreate();
+
+          tempCredentials = result;
+
+          // Show credentials modal
+          document.getElementById('credUsername').textContent = result.username || '-';
+          document.getElementById('credLoginAccount').textContent = result.login_account || '-';
+          document.getElementById('credPassword').textContent = result.password || '-';
+          document.getElementById('credExpireTime').textContent = result.expire_time || '-';
+
+          credentialsModal.classList.add('active');
+
+        } catch (err) {
+          showError(err.message || '创建临时账号失败');
+          showToast(err.message || '创建临时账号失败', 'error');
+        } finally {
+          tempLoginBtn.disabled = false;
+          btnSpinner.classList.add('hidden');
+          btnText.textContent = '一键临时登录';
+        }
+      });
+
+      // ---- Step 3: Auto-login after saving credentials ----
+      gotItBtn.addEventListener('click', async function () {
+        credentialsModal.classList.remove('active');
+
+        if (!tempCredentials) {
+          showError('凭证信息丢失，请重新创建临时账号');
+          return;
+        }
+
+        gotItBtn.disabled = true;
+        gotItBtn.textContent = '登录中...';
+
+        try {
+          var loginResult = await window.LinkAuthAPI.tempLoginLogin({
+            login_account: tempCredentials.login_account,
+            password: tempCredentials.password
+          });
+
+          // Store session info
+          if (loginResult.link_id) {
+            sessionStorage.setItem('link_id', loginResult.link_id);
+          }
+          if (loginResult.token) {
+            sessionStorage.setItem('auth_token', loginResult.token);
+          }
+
+          extendCountRemaining = loginResult.extend_count || 0;
+
+          // Show session info
+          document.getElementById('sessionUsername').textContent = tempCredentials.username || '-';
+          document.getElementById('sessionLoginAccount').textContent = tempCredentials.login_account || '-';
+          document.getElementById('sessionExpireTime').textContent = loginResult.expire_time || tempCredentials.expire_time || '-';
+          document.getElementById('extendCount').textContent = extendCountRemaining;
+
+          if (extendCountRemaining <= 0) {
+            extendBtn.disabled = true;
+            extendBtnText.textContent = '续期次数已用完';
+          } else {
+            extendBtnText.textContent = '续期会话（24小时）- 剩余 ' + extendCountRemaining + ' 次';
+          }
+
+          sessionInfo.classList.remove('hidden');
+          tempLoginBtn.closest('.text-center').classList.add('hidden');
+
+          showToast('临时账号登录成功', 'success');
+
+        } catch (err) {
+          showError(err.message || '登录失败');
+          showToast(err.message || '登录失败', 'error');
+        } finally {
+          gotItBtn.disabled = false;
+          gotItBtn.textContent = '我已保存，进入会话';
+        }
+      });
+
+      // ---- Step 4: Extend session ----
+      extendBtn.addEventListener('click', async function () {
+        if (extendCountRemaining <= 0) {
+          showToast('续期次数已用完，无法继续续期', 'warning');
+          return;
+        }
+
+        extendError.classList.add('hidden');
+        extendBtn.disabled = true;
+        extendSpinner.classList.remove('hidden');
+        extendBtnText.textContent = '续期中...';
+
+        try {
+          var result = await window.LinkAuthAPI.tempLoginExtend();
+
+          extendCountRemaining = result.extend_count || 0;
+          document.getElementById('extendCount').textContent = extendCountRemaining;
+          document.getElementById('sessionExpireTime').textContent = result.expire_time || '-';
+
+          if (extendCountRemaining <= 0) {
+            extendBtn.disabled = true;
+            extendBtnText.textContent = '续期次数已用完';
+          } else {
+            extendBtnText.textContent = '续期会话（24小时）- 剩余 ' + extendCountRemaining + ' 次';
+          }
+
+          showToast('会话已续期24小时', 'success');
+
+        } catch (err) {
+          extendErrorMessage.textContent = err.message || '续期失败';
+          extendError.classList.remove('hidden');
+          showToast(err.message || '续期失败', 'error');
+        } finally {
+          extendBtn.disabled = false;
+          extendSpinner.classList.add('hidden');
+        }
+      });
+
+      // Close credentials modal on overlay click
+      credentialsModal.addEventListener('click', function (e) {
+        if (e.target === credentialsModal) {
+          // Don't close credentials modal by overlay click - the user must click "I got it"
+        }
+      });
+
+    })();
+  </script>
+</body>
+</html>
